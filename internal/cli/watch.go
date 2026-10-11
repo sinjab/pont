@@ -52,6 +52,13 @@ first replays all journaled events after seq N (each replayed line carries
 its "seq"), then continues live (live lines carry "seq" too in this mode).
 Without --since-seq the output is byte-identical to the classic stream.
 
+Optional fan-out sinks (live events only, journal-first, never fatal to
+the watcher): --socket <path> broadcasts every live line to Unix-socket
+subscribers (they may connect and disconnect at any time); --on-message
+<cmd> runs a command (via sh -c) per message event with the JSON line
+on stdin. Dropped subscribers, failed or saturated hooks are warnings —
+the journal still holds everything.
+
 Auto-reconnects on unclean disconnects. Terminal states exit non-zero:
 3 = logged out, 4 = temporary ban, 5 = client outdated, 6 = stream replaced.`,
 	RunE: runWatch,
@@ -61,6 +68,8 @@ func init() {
 	rootCmd.AddCommand(watchCmd)
 	watchCmd.Flags().StringArrayVar(&watchJIDs, "jid", nil, "Only emit messages for these chat JIDs (repeatable; default: all)")
 	watchCmd.Flags().Int64Var(&watchSinceSeq, "since-seq", -1, "Replay journaled events after this seq, then continue live (adds \"seq\" to every line)")
+	watchCmd.Flags().StringVar(&watchSocket, "socket", "", "Unix socket path to broadcast every live event line to (subscribers may connect/disconnect freely)")
+	watchCmd.Flags().StringVar(&watchOnMessage, "on-message", "", "Command (run via sh -c) invoked per message event with the JSON line on stdin")
 }
 
 // watchSchemaVersion stamps every LIVE-emitted event line (contract
@@ -131,6 +140,16 @@ func emitWatchEvent(ev watchEvent) {
 		fmt.Fprintf(os.Stderr, "watch: stdout write failed: %v\n", err)
 		os.Exit(1)
 	}
+	// Fan-out sinks (opt-in, never load-bearing): socket subscribers
+	// get every live line; the hook fires on message events only.
+	// Both are strictly AFTER journal + stdout — the durability and
+	// classic-stream contracts come first.
+	if s := watchSock; s != nil {
+		s.broadcast(append(append([]byte{}, line...), '\n'))
+	}
+	if ev.Event == "message" && watchOnMessage != "" {
+		fireMessageHook([]byte(watchOnMessage), append(append([]byte{}, line...), '\n'))
+	}
 }
 
 func runWatch(cmd *cobra.Command, args []string) error {
@@ -166,6 +185,14 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Fprintf(os.Stderr, "watch: replayed %d journaled events after seq %d\n", len(rows), watchSinceSeq)
 	}
+
+	// Socket sink: live events only (the replay above is consumer
+	// catch-up and stays stdout-only). Started after replay, before
+	// connection, so early subscribers see the "started" event first.
+	if err := startSocketSink(watchSocket); err != nil {
+		return err
+	}
+	defer closeSocketSink()
 
 	client, err := whatsapp.New(db, GetStoreDir(), IsVerbose(), nil)
 	if err != nil {
