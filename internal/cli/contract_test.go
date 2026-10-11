@@ -104,6 +104,7 @@ func buildFixtureStore(t *testing.T) string {
 // production never sees (fresh process each run).
 func resetFlagGlobals() {
 	formatFlag, fieldsFlag = "", ""
+	jqExpr = ""
 	noHeaderFlag, verbose, noAutoSync = false, false, false
 	storeDir = ""
 	timeout = 0

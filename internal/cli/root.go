@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	version = "2.2.0-sinjab"
+	version = "2.3.0-sinjab"
 
 	// Global flags
 	formatFlag   string
 	fieldsFlag   string
+	jqExpr       string
 	noHeaderFlag bool
 	storeDir     string
 	timeout      time.Duration
@@ -37,6 +38,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format: json, jsonl, csv, tsv, human (default: json, or $WHATSAPP_FORMAT)")
 	rootCmd.PersistentFlags().StringVar(&fieldsFlag, "fields", "", "Comma-separated list of fields to include in output")
+	rootCmd.PersistentFlags().StringVar(&jqExpr, "jq", "", "gojq expression over the JSON output (whole payload for json, per line for jsonl; strings print bare)")
 	rootCmd.PersistentFlags().BoolVar(&noHeaderFlag, "no-header", false, "Skip header row in CSV/TSV output")
 	rootCmd.PersistentFlags().StringVar(&storeDir, "store", "", "Store directory (default: ~/.config/whatsapp-cli)")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for bounded waits: one-shot sync, connection auto-sync, auth initial sync (0 = per-command default)")
