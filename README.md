@@ -1,8 +1,27 @@
-# WhatsApp CLI
+# WhatsApp CLI (sinjab fork — canonical)
 
 ![WhatsApp CLI](docs/heading.png)
 
 WhatsApp from your terminal. Pipe it, script it, automate it.
+
+Actively maintained fork of [eddmann/whatsapp-cli](https://github.com/eddmann/whatsapp-cli)
+(upstream silent since 2026-05-26). This repo is the canonical home of the
+runtime patches that keep the CLI working against WhatsApp server-side changes.
+
+**Carries beyond upstream v1.0.1:** whatsmeow protocol bump (survives the
+2026-09-29 "Client outdated 405" wave) · `delete` (revoke for everyone) ·
+media download via signed URL after media-conn 403s + filename de-collision ·
+document MIME/filename fix · GetQRChannel error propagation (no phantom
+"Authenticated!") · `auth login --phone` pairing-code linking (codes live
+~160s) · `watch` JSONL event stream for companion-device consumers ·
+reaction-key Participant fix (servers drop reactions without the original
+author's JID) · `WHATSAPP_LOG_LEVEL` override for wire-level diagnosis.
+
+**Maintenance rules:** weekly bot PRs bump whatsmeow — merge **only after
+the live smoke test passes** (`scripts/smoke-test.sh` on the dedicated smoke
+device; green CI cannot see the WhatsApp network). Back up session + message
+DBs before installs; whatsmeow store migrations are forward-only.
+Install: `brew install sinjab/tap/whatsapp-cli-sinjab`.
 
 > Exploring CLI tools as skills for AI agents. [Background below](#background).
 
