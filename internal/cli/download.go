@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var downloadChat string

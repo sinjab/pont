@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 // WithDB opens the database and runs the provided function.
@@ -48,7 +48,7 @@ func WithConnection(fn func(*store.DB, *whatsapp.Client) error) error {
 	}
 
 	if !client.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'whatsapp auth login' first")
+		return fmt.Errorf("not authenticated. Run 'pont auth login' first")
 	}
 
 	if err := client.Connect(); err != nil {

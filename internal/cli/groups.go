@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.mau.fi/whatsmeow/types"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var groupsCmd = &cobra.Command{

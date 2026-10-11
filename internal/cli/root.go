@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	version = "1.4.0-sinjab"
+	version = "2.0.0-sinjab"
 
 	// Global flags
 	formatFlag   string
@@ -26,7 +26,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:           "whatsapp",
+	Use:           "pont",
 	Short:         "WhatsApp from your terminal. Pipe it, script it, automate it.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -44,7 +44,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&noAutoSync, "no-auto-sync", false, "Skip automatic sync check")
 	rootCmd.PersistentFlags().BoolP("version", "V", false, "Show version")
 
-	rootCmd.SetVersionTemplate(fmt.Sprintf("whatsapp-cli %s\n", version))
+	rootCmd.SetVersionTemplate(fmt.Sprintf("pont %s\n", version))
 	rootCmd.Version = version
 }
 

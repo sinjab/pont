@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var doctorConnect bool
@@ -190,7 +190,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if allOK {
 			fmt.Println("All checks passed!")
 		} else {
-			fmt.Println("Some checks failed. Run 'whatsapp auth login' if not authenticated.")
+			fmt.Println("Some checks failed. Run 'pont auth login' if not authenticated.")
 		}
 	}
 

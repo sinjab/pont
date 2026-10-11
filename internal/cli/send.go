@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var (
@@ -21,7 +21,7 @@ var sendCmd = &cobra.Command{
 	Short: "Send a message",
 	Long: `Send a text or media message to a JID.
 
-Use 'whatsapp chats' to find the JID first.
+Use 'pont chats' to find the JID first.
 
 Examples:
   whatsapp send 1234567890@s.whatsapp.net "Hello!"
