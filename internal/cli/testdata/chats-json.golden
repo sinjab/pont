@@ -1,0 +1,33 @@
+[
+  {
+    "jid": "120363025801653866@g.us",
+    "name": "Family Group",
+    "is_group": true,
+    "last_message_time": "2026-10-01T09:05:00Z",
+    "last_message": "marhaba everyone",
+    "last_sender": "987654321098765@lid",
+    "last_is_from_me": false
+  },
+  {
+    "jid": "21639253782829@s.whatsapp.net",
+    "name": "Yusra",
+    "is_group": false,
+    "last_message_time": "2026-10-01T09:04:00Z",
+    "last_message": "All good, hamdulillah",
+    "last_sender": "21639253782829@s.whatsapp.net",
+    "last_is_from_me": true
+  },
+  {
+    "jid": "971501112233@s.whatsapp.net",
+    "is_group": false,
+    "last_message_time": "2026-10-01T09:02:00Z",
+    "last_message": "the invoice",
+    "last_sender": "971501112233@s.whatsapp.net",
+    "last_is_from_me": false
+  },
+  {
+    "jid": "9715550001111@s.whatsapp.net",
+    "name": "Empty Chat",
+    "is_group": false
+  }
+]

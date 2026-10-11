@@ -1,0 +1,22 @@
+[
+  {
+    "id": "3EB0FIX0005",
+    "chat_jid": "120363025801653866@g.us",
+    "sender": "987654321098765@lid",
+    "sender_name": "Kareem Fixture",
+    "content": "marhaba everyone",
+    "timestamp": "2026-10-01T09:05:00Z",
+    "is_from_me": false,
+    "chat_name": "Family Group"
+  },
+  {
+    "id": "3EB0FIX0006",
+    "chat_jid": "120363025801653866@g.us",
+    "sender": "971501112233@s.whatsapp.net",
+    "sender_name": "Sami Fixture",
+    "content": "ahlan Kareem",
+    "timestamp": "2026-10-01T09:04:30Z",
+    "is_from_me": false,
+    "chat_name": "Family Group"
+  }
+]
