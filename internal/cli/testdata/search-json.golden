@@ -1,0 +1,12 @@
+[
+  {
+    "id": "3EB0FIX0004",
+    "chat_jid": "971501112233@s.whatsapp.net",
+    "sender": "971501112233@s.whatsapp.net",
+    "content": "the invoice",
+    "timestamp": "2026-10-01T09:02:30Z",
+    "is_from_me": false,
+    "media_type": "document",
+    "filename": "invoice.pdf"
+  }
+]
