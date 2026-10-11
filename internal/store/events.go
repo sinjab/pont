@@ -34,7 +34,11 @@ func (d *DB) WatchEventsSince(since int64) ([]WatchEventRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			_ = err // best-effort close on a read-only scan path
+		}
+	}()
 
 	var out []WatchEventRow
 	for rows.Next() {

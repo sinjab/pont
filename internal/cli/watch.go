@@ -108,7 +108,7 @@ func emitWatchEvent(ev watchEvent) {
 		fmt.Fprintf(os.Stderr, "watch: marshal event failed: %v\n", err)
 		return
 	}
-	var line []byte = body
+	var line = body
 	if journalDB != nil {
 		seq, jerr := journalDB.AppendWatchEvent(ev.Event, ev.TS, string(body))
 		if jerr != nil {
