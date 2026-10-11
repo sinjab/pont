@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-11
+
+### Changed
+
+- Store hardening (P1): WAL journal mode + busy_timeout; numbered
+  migrations tracked via `PRAGMA user_version`; the FTS index rebuild
+  now runs ONCE at migration instead of on every database open
+- Message/chat persistence uses `INSERT .. ON CONFLICT` upserts —
+  rowids stay stable and re-delivered echoes no longer null columns
+- Read commands (`chats`, `messages`, `search`) are pure local queries:
+  the implicit >24h auto-sync on reads was removed — refresh explicitly
+  with `sync`
+
+### Added
+
+- Golden contract tests freezing the JSON output shapes (P0) and a
+  hardened live smoke gate (unique per-run token, hash-verified media
+  roundtrip)
+- `(chat_jid, timestamp DESC)` index for message listing queries
+
 ## [1.1.1] - 2026-10-11
 
 ### Fixed
