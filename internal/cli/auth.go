@@ -98,6 +98,13 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "On the phone: WhatsApp -> Settings -> Linked Devices -> Link with phone number instead -> enter the code.")
 		fmt.Fprintln(os.Stderr, "The code expires in ~2 minutes.")
 		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Waiting for the code to be entered on the phone...")
+		// Gate the success banner on actual server-confirmed pairing:
+		// displaying the code proves nothing (fork issue #1).
+		if err := client.WaitForPairCompletion(ctx); err != nil {
+			return fmt.Errorf("pairing did not complete: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, "Pairing confirmed.")
 	} else {
 		fmt.Fprintln(os.Stderr, "Scan this QR code with WhatsApp (Settings → Linked Devices → Link a Device):")
 		fmt.Fprintln(os.Stderr, "")
