@@ -9,11 +9,11 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact: whatsapp-macos-arm64
+            artifact: pont-macos-arm64
           - os: macos-15-intel
-            artifact: whatsapp-macos-x64
+            artifact: pont-macos-x64
           - os: ubuntu-latest
-            artifact: whatsapp-linux-x64
+            artifact: pont-linux-x64
 
     runs-on: ${{ matrix.os }}
 
@@ -103,7 +103,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.changelog.outputs.version }}
-          name: whatsapp-cli v${{ steps.changelog.outputs.version }}
+          name: pont v${{ steps.changelog.outputs.version }}
           body: ${{ steps.changelog.outputs.content }}
           files: release/*
           draft: false
