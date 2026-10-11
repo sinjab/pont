@@ -14,6 +14,7 @@ import (
 func (c *Client) handleMessage(msg *events.Message) {
 	chatJID := msg.Info.Chat.String()
 	sender := msg.Info.Sender.User
+	senderJID := msg.Info.Sender.String() // full JID (user@server): LID vs phone disambiguation (migration v3)
 	content := extractTextContent(msg.Message)
 	mediaType, filename, url, mediaKey, fileSHA256, fileEncSHA256, fileLength := extractMediaInfo(msg.Message)
 
@@ -49,10 +50,11 @@ func (c *Client) handleMessage(msg *events.Message) {
 	}
 
 	if _, err := c.Store.Messages.Exec(`INSERT INTO messages
-		(id, chat_jid, sender, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id, chat_jid) DO UPDATE SET
 			sender = excluded.sender,
+			sender_jid = CASE WHEN excluded.sender_jid != '' THEN excluded.sender_jid ELSE messages.sender_jid END,
 			sender_name = CASE WHEN excluded.sender_name != '' THEN excluded.sender_name ELSE messages.sender_name END,
 			content = CASE WHEN excluded.content != '' THEN excluded.content ELSE messages.content END,
 			timestamp = excluded.timestamp,
@@ -64,7 +66,7 @@ func (c *Client) handleMessage(msg *events.Message) {
 			file_sha256 = CASE WHEN excluded.file_sha256 IS NOT NULL THEN excluded.file_sha256 ELSE messages.file_sha256 END,
 			file_enc_sha256 = CASE WHEN excluded.file_enc_sha256 IS NOT NULL THEN excluded.file_enc_sha256 ELSE messages.file_enc_sha256 END,
 			file_length = CASE WHEN excluded.file_length != 0 THEN excluded.file_length ELSE messages.file_length END`,
-		msg.Info.ID, chatJID, sender, senderName, content, msg.Info.Timestamp, msg.Info.IsFromMe, mediaType, filename, url, mediaKey, fileSHA256, fileEncSHA256, fileLength,
+		msg.Info.ID, chatJID, sender, senderJID, senderName, content, msg.Info.Timestamp, msg.Info.IsFromMe, mediaType, filename, url, mediaKey, fileSHA256, fileEncSHA256, fileLength,
 	); err != nil {
 		c.Logger.Warn("failed to store message", "id", msg.Info.ID, "chat_jid", chatJID, "err", err)
 	}
@@ -135,15 +137,18 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 
 			fromMe := false
 			snd := jid.User
+			sndFull := jid.String() // full JID before normalization (migration v3)
 			if m.Message.Key != nil {
 				if m.Message.Key.FromMe != nil {
 					fromMe = *m.Message.Key.FromMe
 				}
 				if !fromMe && m.Message.Key.Participant != nil && *m.Message.Key.Participant != "" {
 					snd = *m.Message.Key.Participant
+					sndFull = *m.Message.Key.Participant
 				}
 				if fromMe && c.WA != nil && c.WA.Store != nil && c.WA.Store.ID != nil {
 					snd = c.WA.Store.ID.User
+					sndFull = c.WA.Store.ID.String()
 				}
 			}
 
@@ -155,6 +160,9 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 						snd = snd[:i]
 					}
 				}
+			}
+			if sndFull == "" {
+				sndFull = snd
 			}
 
 			// Upsert a per-sender chat entry
@@ -193,10 +201,11 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 			}
 
 			if _, err := c.Store.Messages.Exec(`INSERT INTO messages
-				(id, chat_jid, sender, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(id, chat_jid) DO UPDATE SET
 					sender = excluded.sender,
+					sender_jid = CASE WHEN excluded.sender_jid != '' THEN excluded.sender_jid ELSE messages.sender_jid END,
 					sender_name = CASE WHEN excluded.sender_name != '' THEN excluded.sender_name ELSE messages.sender_name END,
 					content = CASE WHEN excluded.content != '' THEN excluded.content ELSE messages.content END,
 					timestamp = excluded.timestamp,
@@ -208,7 +217,7 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 					file_sha256 = CASE WHEN excluded.file_sha256 IS NOT NULL THEN excluded.file_sha256 ELSE messages.file_sha256 END,
 					file_enc_sha256 = CASE WHEN excluded.file_enc_sha256 IS NOT NULL THEN excluded.file_enc_sha256 ELSE messages.file_enc_sha256 END,
 					file_length = CASE WHEN excluded.file_length != 0 THEN excluded.file_length ELSE messages.file_length END`,
-				id, chatJID, snd, senderName, text, t, fromMe, mt, fn, u, mk, sha, enc, fl); err != nil {
+				id, chatJID, snd, sndFull, senderName, text, t, fromMe, mt, fn, u, mk, sha, enc, fl); err != nil {
 				c.Logger.Warn("history sync: failed to store message", "id", id, "chat_jid", chatJID, "err", err)
 				continue
 			}
