@@ -133,8 +133,8 @@ func runFixtureCmd(t *testing.T, dir string, args ...string) string {
 	rootCmd.SetArgs(args)
 	cmdErr := rootCmd.Execute()
 
-	wOut.Close()
-	wErr.Close()
+	_ = wOut.Close()
+	_ = wErr.Close()
 	os.Stdout, os.Stderr = oldOut, oldErr
 	_, _ = io.ReadAll(rErr)
 
