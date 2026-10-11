@@ -34,26 +34,18 @@ Install: `brew install sinjab/tap/whatsapp-cli-sinjab`.
 
 ## Installation
 
-### Quick Install (Recommended)
+### Homebrew (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/eddmann/whatsapp-cli/main/install.sh | sh
-```
-
-Downloads the pre-built binary for your platform (macOS/Linux) to `~/.local/bin`.
-
-### Homebrew
-
-```bash
-brew install eddmann/tap/whatsapp-cli
+brew install sinjab/tap/whatsapp-cli-sinjab
 ```
 
 ### From Source
 
-Requires Go 1.25+ with CGO enabled (for SQLite). FFmpeg optional for audio conversion.
+Requires Go 1.26+ with CGO enabled (for SQLite). FFmpeg optional for audio conversion.
 
 ```bash
-git clone https://github.com/eddmann/whatsapp-cli
+git clone https://github.com/sinjab/whatsapp-cli
 cd whatsapp-cli
 make build
 
@@ -229,7 +221,7 @@ Installs the skill to `~/.claude/skills/whatsapp/` and `~/.cursor/skills/whatsap
 ## Development
 
 ```bash
-git clone https://github.com/eddmann/whatsapp-cli
+git clone https://github.com/sinjab/whatsapp-cli
 cd whatsapp-cli
 make build                    # Build binary
 make test                     # Run tests
