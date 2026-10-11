@@ -213,7 +213,7 @@ This CLI is available as an [Agent Skill](https://agentskills.io/) — it works 
 ### Install Agent Skill
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/eddmann/whatsapp-cli/main/install-skill.sh | sh
+curl -fsSL https://raw.githubusercontent.com/sinjab/whatsapp-cli/main/install-skill.sh | sh
 ```
 
 Installs the skill to `~/.claude/skills/whatsapp/` and `~/.cursor/skills/whatsapp/`. Agents will auto-detect when you ask about WhatsApp messages.
