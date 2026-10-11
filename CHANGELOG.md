@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-11
+
+### Added
+
+- `sender_jid` column (migration v3): the full sender JID
+  (user@server) captured at both write sites — disambiguates LID vs
+  phone senders sharing digits. Legacy rows stay NULL (never
+  fabricated); reads and the JSON contract untouched
+
+### Changed
+
+- Module path is now `github.com/sinjab/whatsapp-cli` (was
+  `github.com/eddmann/whatsapp-cli`) — the source identity matches the
+  repository that already owns it
+
 ## [1.3.0] - 2026-10-11
 
 ### Added

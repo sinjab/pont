@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	version = "1.3.0-sinjab"
+	version = "1.4.0-sinjab"
 
 	// Global flags
 	formatFlag   string
