@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-11
+
+### Added
+
+- Durable watch event journal (P2): every streamed event is journaled
+  to the store BEFORE emission (`watch_events`, migration v2)
+- `watch --since-seq N`: replay-then-live — emits all journaled events
+  after seq N (lines carry `"seq"`), then continues the live stream;
+  a restarted consumer loses nothing and dedupes by id/chat/kind.
+  Without the flag the output is byte-identical to the classic stream
+- Journal retention: newest 10,000 rows, pruned at watch startup
+
 ## [1.2.0] - 2026-10-11
 
 ### Changed
