@@ -489,7 +489,11 @@ func (c *Client) downloadViaURL(url string, mediaKey []byte, mediaType whatsmeow
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			c.Logger.Warn("media url download: body close failed", "error", cerr)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("url download status %d", resp.StatusCode)
 	}
