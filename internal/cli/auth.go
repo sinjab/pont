@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var authCmd = &cobra.Command{
@@ -117,7 +117,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Authenticated! Starting initial sync...")
 	fmt.Fprintln(os.Stderr, "This may take a few minutes depending on your message history.")
-	fmt.Fprintln(os.Stderr, "Press Ctrl+C to stop (you can resume sync later with 'whatsapp sync').")
+	fmt.Fprintln(os.Stderr, "Press Ctrl+C to stop (you can resume sync later with 'pont sync').")
 	fmt.Fprintln(os.Stderr, "")
 
 	// Wait for initial sync (with timeout)
@@ -128,7 +128,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	case <-client.SyncComplete:
 		fmt.Fprintln(os.Stderr, "Initial sync complete.")
 	case <-time.After(syncTimeout):
-		fmt.Fprintln(os.Stderr, "Initial sync timeout reached. You can continue syncing with 'whatsapp sync'.")
+		fmt.Fprintln(os.Stderr, "Initial sync timeout reached. You can continue syncing with 'pont sync'.")
 	}
 
 	client.Disconnect()

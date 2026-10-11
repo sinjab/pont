@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-11
+
+### Changed
+
+- **The project is now `pont`** — an independently maintained original
+  project, no longer a fork in name or source: module path
+  `github.com/sinjab/pont`, binary `pont`, command identity `pont`.
+  Born from whatsapp-cli (MIT, © Edd Mann) and retained with
+  attribution; see README
+- The Homebrew formula installs `pont` AND a `whatsapp` symlink —
+  every existing script, launchd agent, and integration calling
+  `whatsapp` keeps working unchanged
+- Data homes are UNCHANGED (`~/.config/whatsapp-cli/...` and every
+  `--store` path) and env vars keep their `WHATSAPP_*` names — no
+  migration, no launchd/TCC/backup changes
+
 ## [1.4.0] - 2026-10-11
 
 ### Added

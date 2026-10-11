@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
-	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/pont/internal/store"
+	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var (
@@ -52,7 +52,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	if !client.IsAuthenticated() {
-		return fmt.Errorf("not authenticated. Run 'whatsapp auth login' first")
+		return fmt.Errorf("not authenticated. Run 'pont auth login' first")
 	}
 
 	// Set up signal handling

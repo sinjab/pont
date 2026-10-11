@@ -1,4 +1,4 @@
-module github.com/sinjab/whatsapp-cli
+module github.com/sinjab/pont
 
 go 1.26.0
 

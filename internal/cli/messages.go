@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sinjab/whatsapp-cli/internal/store"
+	"github.com/sinjab/pont/internal/store"
 )
 
 var (
@@ -21,7 +21,7 @@ var messagesCmd = &cobra.Command{
 	Short: "List messages from a chat",
 	Long: `List messages from a specific chat by JID.
 
-Use 'whatsapp chats' to find the JID first.
+Use 'pont chats' to find the JID first.
 
 Timeframe presets: last_hour, today, yesterday, last_3_days, this_week, last_week, this_month`,
 	Args: cobra.ExactArgs(1),
