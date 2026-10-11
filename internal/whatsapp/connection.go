@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mdp/qrterminal/v3"
+	"go.mau.fi/whatsmeow"
 	waHistorySync "go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -87,6 +88,21 @@ func (c *Client) ConnectWithQR(ctx context.Context) error {
 	}
 
 	return c.WA.Connect()
+}
+
+// ConnectWithPairCode links a new device using a phone-number pairing code
+// instead of a QR scan. The phone must enter the returned code under
+// Settings -> Linked Devices -> Link with phone number instead.
+func (c *Client) ConnectWithPairCode(ctx context.Context, phone string) (string, error) {
+	if c.WA.Store.ID != nil {
+		return "", fmt.Errorf("already authenticated")
+	}
+	if err := c.WA.Connect(); err != nil {
+		return "", err
+	}
+	// whatsmeow docs: wait for the first QR event (or ~1s) before PairPhone.
+	time.Sleep(1500 * time.Millisecond)
+	return c.WA.PairPhone(ctx, phone, true, whatsmeow.PairClientMacOS, "Chrome (macOS)")
 }
 
 // Connect connects to WhatsApp without QR (requires existing session).
