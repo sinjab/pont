@@ -45,6 +45,13 @@ func New(db *store.DB, baseDir string, verbose bool, logger *slog.Logger) (*Clie
 	if verbose {
 		zerologLevel = zerolog.InfoLevel
 	}
+	// WHATSAPP_LOG_LEVEL=debug overrides (wire-level diagnosis: outgoing
+	// nodes, token attachment, server acks).
+	if lvl := os.Getenv("WHATSAPP_LOG_LEVEL"); lvl != "" {
+		if parsed, err := zerolog.ParseLevel(lvl); err == nil {
+			zerologLevel = parsed
+		}
+	}
 
 	waZerolog := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).
 		Level(zerologLevel).
