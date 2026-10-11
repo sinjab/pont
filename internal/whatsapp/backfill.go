@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eddmann/whatsapp-cli/internal/store"
+	"github.com/sinjab/whatsapp-cli/internal/store"
 	"go.mau.fi/whatsmeow/types"
 )
 

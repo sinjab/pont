@@ -18,7 +18,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"github.com/eddmann/whatsapp-cli/internal/store"
+	"github.com/sinjab/whatsapp-cli/internal/store"
 )
 
 // Client wraps a WhatsApp client with store integration.

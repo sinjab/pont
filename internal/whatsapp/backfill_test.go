@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eddmann/whatsapp-cli/internal/store"
+	"github.com/sinjab/whatsapp-cli/internal/store"
 )
 
 func TestBuildBackfillAnchorUsesOldestStoredMessage(t *testing.T) {
