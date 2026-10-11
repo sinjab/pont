@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-10-12
+
+### Added
+
+- `watch --socket <path>`: opt-in Unix-domain broadcast bus — every
+  live event line (same JSONL bytes as stdout) is written to all
+  connected subscribers; they may connect and disconnect at any time
+  without killing the watcher (a stalled subscriber is dropped after a
+  1s write deadline). Live events only: the journal-replay path stays
+  stdout-only, and the classic stdout stream is unchanged. Watch for
+  macOS's ~104-byte unix-socket path limit
+- `watch --on-message <cmd>`: opt-in hook invoked per message event
+  with the JSON line on stdin (run via `sh -c`, async, max 8
+  concurrent, 60s cap, saturation skips with a warning). Both sinks
+  are strictly AFTER journal + stdout — durability contracts come
+  first, and no sink failure is fatal to the watcher (P2 fan-out tail
+  from the Oct 11 rewrite consult)
+
 ## [2.1.0] - 2026-10-12
 
 ### Added
