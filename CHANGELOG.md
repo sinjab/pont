@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-11
+
+### Fixed
+
+- `auth login --phone`: the success banner is now gated on server-confirmed
+  pairing (PairSuccess + post-pair reconnect) instead of printing immediately
+  after the pairing code (phantom success, #1)
+- pairing failures exit honestly: code expiry, server socket loss and
+  Ctrl+C report errors instead of claiming authentication
+- stale never-paired device rows (empty jid, left behind by a pairing
+  holder killed mid-attempt) are swept automatically at client construction
+
+## [1.1.0] - 2026-10-11
+
+### Added
+
+- `watch` command for live message watching (#17)
+- `auth login --phone` pairing-code linking (#18)
+- `delete` command for local message deletion (#13)
+
+### Changed
+
+- Canonical home is now the sinjab fork (brew: `sinjab/tap/whatsapp-cli-sinjab`)
+- whatsmeow protocol update (#14), media URL download fix (#15),
+  QR channel error propagation (#16), document MIME fix (#8), reaction-key
+  Participant fix, `WHATSAPP_LOG_LEVEL` override
+
 ## [1.0.1] - 2026-05-26
 
 ### Changed
