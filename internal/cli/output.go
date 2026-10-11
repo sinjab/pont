@@ -53,6 +53,27 @@ func output(data any, opts OutputOptions) error {
 		return err
 	}
 
+	// --jq runs over the field-filtered JSON payload (whole payload for
+	// json, per element for jsonl) and replaces the normal rendering.
+	if jqExpr != "" {
+		if !jqExprValid(opts.Format) {
+			return fmt.Errorf("--jq requires --format json or jsonl (got %q)", opts.Format)
+		}
+		data = filterFields(data, opts.Fields)
+		if opts.Format == FormatJSONL {
+			v := derefValue(reflect.ValueOf(data))
+			if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+				for i := 0; i < v.Len(); i++ {
+					if err := runJQ(jqExpr, v.Index(i).Interface()); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+		}
+		return runJQ(jqExpr, data)
+	}
+
 	switch opts.Format {
 	case FormatJSON:
 		return outputJSON(data, opts.Fields)

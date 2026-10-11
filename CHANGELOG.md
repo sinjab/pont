@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-10-12
+
+### Added
+
+- `--jq <expr>`: gh-style gojq expression over the JSON output
+  (P4 feature, Oct 11 rewrite consult). Applies after `--fields`
+  filtering, before rendering: with `--format json` the query runs
+  over the whole payload (`pont chats --jq '.[].name'`); with
+  `--format jsonl` it runs per line. Results print one per line —
+  strings bare (grep-able), everything else compact JSON. Non-JSON
+  formats reject `--jq` explicitly. Powered by itchyny/gojq
+
 ## [2.2.0] - 2026-10-12
 
 ### Added
