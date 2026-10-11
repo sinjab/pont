@@ -41,7 +41,7 @@ func TestSocketSinkBroadcastAndSurvival(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tmpdir: %v", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	sockPath := filepath.Join(dir, "watch.sock")
 	if err := startSocketSink(sockPath); err != nil {
 		t.Fatalf("startSocketSink: %v", err)
@@ -52,7 +52,7 @@ func TestSocketSinkBroadcastAndSurvival(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer c1.Close()
+	defer func() { _ = c1.Close() }()
 	awaitSubscriber(t, 1)
 
 	emitWatchEvent(watchEvent{Event: "connected"})
@@ -78,7 +78,7 @@ func TestSocketSinkBroadcastAndSurvival(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-dial: %v", err)
 	}
-	defer c2.Close()
+	defer func() { _ = c2.Close() }()
 	awaitSubscriber(t, 1) // c1 dropped by the broadcast above, c2 registered
 	emitWatchEvent(watchEvent{Event: "disconnected", Reason: "test"})
 	line2, err := bufio.NewReader(c2).ReadString('\n')
