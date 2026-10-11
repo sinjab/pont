@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -26,6 +28,10 @@ type Client struct {
 	Logger       *slog.Logger
 	BaseDir      string
 	SyncComplete chan struct{} // Signals when history sync is complete
+
+	pairResult        chan error    // Set when pairing succeeds (nil) or fails; drained by WaitForPairCompletion
+	postPairConnected chan struct{} // Sticky: set on every events.Connected; gates the post-pair reconnect
+	paired            atomic.Bool   // True once PairSuccess has fired
 
 	syncCompleteMu    sync.Mutex
 	syncCompleteTimer *time.Timer
@@ -78,6 +84,12 @@ func New(db *store.DB, baseDir string, verbose bool, logger *slog.Logger) (*Clie
 		return nil, fmt.Errorf("failed to create store dir: %w", err)
 	}
 
+	// A previous pairing holder killed mid-attempt can leave a never-paired
+	// device row (empty jid) behind; GetFirstDevice would then hand back that
+	// half-written store and poison the next login (fork issue #1). Sweep it
+	// best-effort before opening the container.
+	sweepStalePairingRow(filepath.Join(baseDir, "session.db"), logger)
+
 	waDBURI := fmt.Sprintf("file:%s/session.db?_foreign_keys=on", baseDir)
 	container, err := sqlstore.New(context.Background(), "sqlite3", waDBURI, dbLog)
 	if err != nil {
@@ -99,15 +111,44 @@ func New(db *store.DB, baseDir string, verbose bool, logger *slog.Logger) (*Clie
 	}
 
 	c := &Client{
-		WA:           client,
-		Store:        db,
-		Logger:       logger,
-		BaseDir:      baseDir,
-		SyncComplete: make(chan struct{}, 1),
+		WA:                client,
+		Store:             db,
+		Logger:            logger,
+		BaseDir:           baseDir,
+		SyncComplete:      make(chan struct{}, 1),
+		pairResult:        make(chan error, 1),
+		postPairConnected: make(chan struct{}, 1),
 	}
 	c.registerHandlers()
 
 	return c, nil
+}
+
+// sweepStalePairingRow removes a never-paired device row (empty jid) left
+// behind when a pairing holder is killed mid-attempt: such a row makes
+// GetFirstDevice return a half-written store instead of a fresh device,
+// breaking the next login. Best-effort — a missing file or table is normal
+// (fresh stores have no session.db yet) and not an error.
+func sweepStalePairingRow(path string, logger *slog.Logger) {
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	db, err := sql.Open("sqlite3", "file:"+path+"?_foreign_keys=on")
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.Warn("failed to close sweep db handle", "error", err)
+		}
+	}()
+	res, err := db.Exec(`DELETE FROM whatsmeow_device WHERE jid = ''`)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		logger.Warn("swept stale never-paired device row from session db", "rows", n)
+	}
 }
 
 // IsAuthenticated returns true if there's a stored session.
