@@ -286,13 +286,36 @@ func (c *Client) SendReaction(chatJID, messageID, emoji string, remove bool) (*S
 		reactionText = ""
 	}
 
+	// The reaction key MUST carry the original author's JID in Participant
+	// when reacting to someone else's message — WhatsApp servers silently
+	// drop the reaction otherwise (proven Oct 9 2026 in LID chats: receipt
+	// returned, nothing delivered). The store's `sender` column holds a
+	// BARE number (no suffix), so derive the participant JID:
+	// - 1:1 chat: the peer IS the chat JID.
+	// - group chat: participants are addressed by LID JID post-privacy-
+	//   update, so bare sender digits + "@lid" (untested — no group case
+	//   verified yet).
+	keyParticipant := ""
+	if !isFromMe {
+		if strings.HasSuffix(chatJID, "@g.us") {
+			keyParticipant = sender + "@lid"
+		} else {
+			keyParticipant = jid.String()
+		}
+	}
+
+	key := &waCommon.MessageKey{
+		RemoteJID: protoString(jid.String()),
+		FromMe:    protoBool(isFromMe),
+		ID:        protoString(messageID),
+	}
+	if keyParticipant != "" {
+		key.Participant = protoString(keyParticipant)
+	}
+
 	msg := &waE2E.Message{
 		ReactionMessage: &waE2E.ReactionMessage{
-			Key: &waCommon.MessageKey{
-				RemoteJID: protoString(chatJID),
-				FromMe:    protoBool(isFromMe),
-				ID:        protoString(messageID),
-			},
+			Key:  key,
 			Text: protoString(reactionText),
 		},
 	}
