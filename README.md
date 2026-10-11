@@ -1,6 +1,6 @@
-# WhatsApp CLI (sinjab fork — canonical)
+# pont
 
-![WhatsApp CLI](docs/heading.png)
+![pont](docs/heading.png)
 
 WhatsApp from your terminal. Pipe it, script it, automate it.
 
