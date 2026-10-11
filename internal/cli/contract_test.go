@@ -114,6 +114,8 @@ func resetFlagGlobals() {
 	messagesTimeframe, messagesType = "", ""
 	searchChat, searchFrom, searchType = "", "", ""
 	searchTimeframe, searchLimit = "", 50
+	watchJIDs, watchSinceSeq = nil, -1
+	journalDB, seqMode = nil, false
 }
 
 // runFixtureCmd executes the root command in-process against the fixture

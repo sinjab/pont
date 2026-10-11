@@ -35,8 +35,12 @@ func TestOpenEnablesWALAndMigratesToV1(t *testing.T) {
 	if err := db.Messages.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
 		t.Fatalf("user_version: %v", err)
 	}
-	if v != 1 {
-		t.Fatalf("user_version = %d, want 1", v)
+	var want int64 = 1
+	for _, m := range migrations {
+		want = m.version
+	}
+	if v != want {
+		t.Fatalf("user_version = %d, want %d", v, want)
 	}
 
 	var idx string
