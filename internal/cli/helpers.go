@@ -10,7 +10,10 @@ import (
 )
 
 // WithDB opens the database and runs the provided function.
-// Performs auto-sync if last sync was over 24 hours ago.
+// Read commands are PURE local queries: no implicit network connection,
+// no surprise socket collisions with the watch daemon, no latency spikes
+// (auto-sync removed Oct 11 2026, P1 — refresh explicitly via `sync`;
+// connected commands still auto-sync through WithConnection).
 func WithDB(fn func(*store.DB) error) error {
 	if err := EnsureDirectories(); err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
@@ -21,11 +24,6 @@ func WithDB(fn func(*store.DB) error) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.CloseQuietly()
-
-	// Auto-sync if needed
-	if err := maybeAutoSync(db); err != nil {
-		fmt.Fprintf(os.Stderr, "Auto-sync warning: %v\n", err)
-	}
 
 	return fn(db)
 }

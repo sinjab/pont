@@ -62,37 +62,10 @@ func formatTimeSince(t time.Time) string {
 	}
 }
 
-// maybeAutoSync performs a sync if needed (for WithDB commands that don't have a client).
-// Creates a temporary connection, syncs, then disconnects.
-func maybeAutoSync(db *store.DB) error {
-	if !shouldAutoSync(db) {
-		return nil
-	}
-
-	lastSync, _ := db.GetLastSyncTime()
-	fmt.Fprintf(os.Stderr, "Auto-syncing (last sync: %s)...\n", formatTimeSince(lastSync))
-
-	// Create a temporary client for syncing
-	client, err := whatsapp.New(db, GetStoreDir(), IsVerbose(), nil)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-
-	// Check if authenticated
-	if !client.IsAuthenticated() {
-		// Not authenticated - skip auto-sync silently
-		return nil
-	}
-
-	// Connect
-	if err := client.Connect(); err != nil {
-		return fmt.Errorf("connection failed: %w", err)
-	}
-	defer client.Disconnect()
-
-	// Perform the quick sync
-	return performQuickSync(client, db)
-}
+// maybeAutoSyncWithClient performs a sync if needed, on an ALREADY-CONNECTED
+// client (WithConnection path). The WithDB read-path variant was removed in
+// P1 (Oct 11 2026): scripted reads are pure local queries now — `sync` is
+// the explicit refresh.
 
 // maybeAutoSyncWithClient performs a sync if needed, using an existing client connection.
 func maybeAutoSyncWithClient(client *whatsapp.Client, db *store.DB) error {
