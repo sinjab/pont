@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -27,6 +28,10 @@ const (
 )
 
 var watchJIDs []string
+var watchSinceSeq int64
+
+// watchJournalRetention bounds the durable event journal (pruned at startup).
+const watchJournalRetention = 10000
 
 var watchCmd = &cobra.Command{
 	Use:   "watch",
@@ -38,6 +43,15 @@ directory (a separate linked device): one JSON object per line for message,
 connected, disconnected, keepalive_timeout, offline_sync_completed and
 terminal events. It never sends messages and never mutates any other store.
 
+Every event is journaled durably (watch_events table in the same store)
+BEFORE it is emitted, so a restarted consumer loses nothing:
+
+    whatsapp watch --since-seq N
+
+first replays all journaled events after seq N (each replayed line carries
+its "seq"), then continues live (live lines carry "seq" too in this mode).
+Without --since-seq the output is byte-identical to the classic stream.
+
 Auto-reconnects on unclean disconnects. Terminal states exit non-zero:
 3 = logged out, 4 = temporary ban, 5 = client outdated, 6 = stream replaced.`,
 	RunE: runWatch,
@@ -46,6 +60,7 @@ Auto-reconnects on unclean disconnects. Terminal states exit non-zero:
 func init() {
 	rootCmd.AddCommand(watchCmd)
 	watchCmd.Flags().StringArrayVar(&watchJIDs, "jid", nil, "Only emit messages for these chat JIDs (repeatable; default: all)")
+	watchCmd.Flags().Int64Var(&watchSinceSeq, "since-seq", -1, "Replay journaled events after this seq, then continue live (adds \"seq\" to every line)")
 }
 
 type watchEvent struct {
@@ -56,12 +71,54 @@ type watchEvent struct {
 	Count   int                          `json:"count,omitempty"`
 }
 
+// journalDB and seqMode wire the durable event journal into the emit path.
+// journalDB is set by runWatch once the store is open; seqMode is true when
+// --since-seq was passed (replay + live lines carry their journal seq).
+var (
+	journalDB *store.DB
+	seqMode   bool
+)
+
+// withSeqPrefix splices a seq field in front of a marshaled JSON object:
+// {"event":...} -> {"seq":N,"event":...}. String surgery on the encoder
+// output keeps the emitted field order deterministic and the classic shape
+// (without seq) untouched.
+func withSeqPrefix(seq int64, body []byte) []byte {
+	if len(body) == 0 || body[0] != '{' {
+		return body
+	}
+	out := make([]byte, 0, len(body)+16)
+	out = append(out, `{"seq":`...)
+	out = strconv.AppendInt(out, seq, 10)
+	out = append(out, ',')
+	out = append(out, body[1:]...)
+	return out
+}
+
+// emitWatchEvent journals the event durably FIRST, then writes it to stdout.
+// Write errors (e.g. closed pipe) are fatal for a stream process — but the
+// journal already holds the event, so a restarted consumer replays it via
+// --since-seq instead of losing it.
 func emitWatchEvent(ev watchEvent) {
 	if ev.TS.IsZero() {
 		ev.TS = time.Now()
 	}
-	// One line per event; write errors (e.g. closed pipe) are fatal for a stream process.
-	if err := json.NewEncoder(os.Stdout).Encode(ev); err != nil {
+	body, err := json.Marshal(ev)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "watch: marshal event failed: %v\n", err)
+		return
+	}
+	var line = body
+	if journalDB != nil {
+		seq, jerr := journalDB.AppendWatchEvent(ev.Event, ev.TS, string(body))
+		if jerr != nil {
+			// Journal is durability, not the live path: warn and stream on.
+			fmt.Fprintf(os.Stderr, "watch: journal append failed: %v\n", jerr)
+		} else if seqMode {
+			line = withSeqPrefix(seq, body)
+		}
+	}
+	if _, err := os.Stdout.Write(append(line, '\n')); err != nil {
 		fmt.Fprintf(os.Stderr, "watch: stdout write failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -77,6 +134,29 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 	defer db.CloseQuietly()
+
+	// Wire the durable journal; prune to bound it.
+	journalDB = db
+	if err := db.PruneWatchEvents(watchJournalRetention); err != nil {
+		fmt.Fprintf(os.Stderr, "watch: journal prune failed: %v\n", err)
+	}
+
+	// Replay mode: emit everything the journal holds after the cursor
+	// BEFORE connecting, so the consumer sees a single ordered stream.
+	if watchSinceSeq >= 0 {
+		seqMode = true
+		rows, rerr := db.WatchEventsSince(watchSinceSeq)
+		if rerr != nil {
+			return fmt.Errorf("journal replay failed: %w", rerr)
+		}
+		for _, r := range rows {
+			line := withSeqPrefix(r.Seq, []byte(r.Payload))
+			if _, err := os.Stdout.Write(append(line, '\n')); err != nil {
+				return fmt.Errorf("replay write failed: %w", err)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "watch: replayed %d journaled events after seq %d\n", len(rows), watchSinceSeq)
+	}
 
 	client, err := whatsapp.New(db, GetStoreDir(), IsVerbose(), nil)
 	if err != nil {

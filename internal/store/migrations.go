@@ -41,6 +41,22 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 2,
+		name:    "watch event journal (durable replay for watch consumers)",
+		fn: func(db execer) error {
+			_, err := db.Exec(`CREATE TABLE IF NOT EXISTS watch_events (
+				seq INTEGER PRIMARY KEY AUTOINCREMENT,
+				ts TIMESTAMP NOT NULL,
+				kind TEXT NOT NULL,
+				payload TEXT NOT NULL
+			)`)
+			if err != nil {
+				return fmt.Errorf("create watch_events: %w", err)
+			}
+			return nil
+		},
+	},
 }
 
 // migrateDB applies pending migrations, each in its own transaction with
