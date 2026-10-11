@@ -43,7 +43,7 @@ jobs:
         run: make build
 
       - name: Rename binary
-        run: mv dist/whatsapp dist/${{ matrix.artifact }}
+        run: mv dist/pont dist/${{ matrix.artifact }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
