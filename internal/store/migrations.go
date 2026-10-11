@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // migrations are numbered, run exactly once, and tracked via PRAGMA
@@ -53,6 +54,23 @@ var migrations = []migration{
 			)`)
 			if err != nil {
 				return fmt.Errorf("create watch_events: %w", err)
+			}
+			return nil
+		},
+	},
+	{
+		version: 3,
+		name:    "sender full-JID column (new records only; legacy rows stay NULL)",
+		fn: func(db execer) error {
+			// sender stores only the user component - a LID user and a phone
+			// user with the same digits are ambiguous. sender_jid captures the
+			// full JID for NEW records; legacy rows stay NULL rather than
+			// guessed (never pretend historical identifiers can be
+			// reconstructed reliably).
+			if _, err := db.Exec(`ALTER TABLE messages ADD COLUMN sender_jid TEXT`); err != nil {
+				if !strings.Contains(err.Error(), "duplicate column name") {
+					return fmt.Errorf("add sender_jid: %w", err)
+				}
 			}
 			return nil
 		},

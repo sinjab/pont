@@ -94,10 +94,11 @@ func TestUpsertPreservesRowidAndColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	const upsertMsg = `INSERT INTO messages
-		(id, chat_jid, sender, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, media_key, file_sha256, file_enc_sha256, file_length)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id, chat_jid) DO UPDATE SET
 			sender = excluded.sender,
+			sender_jid = CASE WHEN excluded.sender_jid != '' THEN excluded.sender_jid ELSE messages.sender_jid END,
 			sender_name = CASE WHEN excluded.sender_name != '' THEN excluded.sender_name ELSE messages.sender_name END,
 			content = CASE WHEN excluded.content != '' THEN excluded.content ELSE messages.content END,
 			timestamp = excluded.timestamp,
@@ -111,7 +112,7 @@ func TestUpsertPreservesRowidAndColumns(t *testing.T) {
 			file_length = CASE WHEN excluded.file_length != 0 THEN excluded.file_length ELSE messages.file_length END`
 
 	if _, err := db.Messages.Exec(upsertMsg,
-		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "Original Name", "first content",
+		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "a@s.whatsapp.net", "Original Name", "first content",
 		"2026-10-01T09:00:00Z", false, "image", "orig.jpg", "http://u", []byte{1}, []byte{2}, []byte{3}, 123); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestUpsertPreservesRowidAndColumns(t *testing.T) {
 
 	// Re-see the same message with emptier payloads (echo re-delivery).
 	if _, err := db.Messages.Exec(upsertMsg,
-		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "", "",
+		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "", "", "",
 		"2026-10-01T09:00:01Z", false, nil, nil, "", nil, nil, nil, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func TestUpsertPreservesRowidAndColumns(t *testing.T) {
 
 	// Newer non-empty payload DOES overwrite (freshness).
 	if _, err := db.Messages.Exec(upsertMsg,
-		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "New Name", "updated content",
+		"M1", "a@s.whatsapp.net", "a@s.whatsapp.net", "a@s.whatsapp.net", "New Name", "updated content",
 		"2026-10-01T09:00:02Z", false, "video", "v.mp4", "http://u2", []byte{9}, []byte{9}, []byte{9}, 456); err != nil {
 		t.Fatal(err)
 	}
@@ -169,5 +170,29 @@ func TestUpsertPreservesRowidAndColumns(t *testing.T) {
 	}
 	if senderName.String != "New Name" || content.String != "updated content" || mediaType.String != "video" {
 		t.Fatalf("fresh non-empty payload did not overwrite: %+v %+v %+v", senderName, content, mediaType)
+	}
+}
+
+func TestMigrationV3SenderJIDColumn(t *testing.T) {
+	dir := t.TempDir()
+	db := openT(t, filepath.Join(dir, "m.db"))
+	var col string
+	if err := db.Messages.QueryRow(`SELECT name FROM pragma_table_info('messages') WHERE name='sender_jid'`).Scan(&col); err != nil {
+		t.Fatalf("sender_jid column missing: %v", err)
+	}
+	// Legacy-honesty: no backfill — existing rows keep NULL sender_jid.
+	if _, err := db.Messages.Exec(`INSERT INTO chats (jid, name) VALUES ('b@s.whatsapp.net','B')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Messages.Exec(`INSERT INTO messages (id, chat_jid, sender, content, timestamp, is_from_me)
+		VALUES ('L1','b@s.whatsapp.net','b','legacy row','2026-10-01T09:00:00Z',0)`); err != nil {
+		t.Fatal(err)
+	}
+	var jid sql.NullString
+	if err := db.Messages.QueryRow(`SELECT sender_jid FROM messages WHERE id='L1'`).Scan(&jid); err != nil {
+		t.Fatal(err)
+	}
+	if jid.Valid {
+		t.Fatalf("legacy row got a fabricated sender_jid: %q", jid.String)
 	}
 }
