@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"encoding/json"
 	"time"
 
 	"go.mau.fi/whatsmeow/types/events"
@@ -9,21 +10,37 @@ import (
 // MessageDescription is a serializable summary of a live message event,
 // for consumers that watch the event stream without touching the store.
 type MessageDescription struct {
-	ID         string    `json:"id"`
-	ChatJID    string    `json:"chat_jid"`
-	Sender     string    `json:"sender"`
-	SenderAlt  string    `json:"sender_alt,omitempty"`
-	SenderName string    `json:"sender_name,omitempty"`
-	PushName   string    `json:"push_name,omitempty"`
-	FromMe     bool      `json:"from_me"`
-	Timestamp  time.Time `json:"timestamp"`
-	Type       string    `json:"type,omitempty"`
-	Content    string    `json:"content,omitempty"`
+	ID         string `json:"id"`
+	ChatJID    string `json:"chat_jid"`
+	Sender     string `json:"sender"`
+	SenderAlt  string `json:"sender_alt,omitempty"`
+	SenderName string `json:"sender_name,omitempty"`
+	PushName   string `json:"push_name,omitempty"`
+	// IsFromMe / MediaType are the canonical field names, aligned with
+	// the store models (contract normalization, Oct 11 2026 consult).
+	IsFromMe  bool      `json:"is_from_me"`
+	Timestamp time.Time `json:"timestamp"`
+	MediaType string    `json:"media_type,omitempty"`
+	Content   string    `json:"content,omitempty"`
 	// DeviceSent is true when this is a copy of a message sent from
 	// another one of the user's own linked devices (phone, desktop,
 	// another CLI instance). On a dedicated watcher device these
 	// copies are the reliable outbound oracle.
 	DeviceSent bool `json:"device_sent,omitempty"`
+}
+
+// MarshalJSON derives the legacy from_me / type aliases from the
+// canonical IsFromMe / MediaType fields, so alias and canonical can
+// never disagree wherever the struct is built. The aliases remain
+// load-bearing for downstream consumers (autoreply.py reads them)
+// until v3.0 removes them — delete this method then.
+func (d MessageDescription) MarshalJSON() ([]byte, error) {
+	type canonical MessageDescription
+	return json.Marshal(struct {
+		canonical
+		FromMe bool   `json:"from_me"`
+		Type   string `json:"type,omitempty"`
+	}{canonical(d), d.IsFromMe, d.MediaType})
 }
 
 // DescribeMessage summarizes a live events.Message without persisting anything.
@@ -36,9 +53,9 @@ func (c *Client) DescribeMessage(msg *events.Message) MessageDescription {
 		ChatJID:   msg.Info.Chat.String(),
 		Sender:    msg.Info.Sender.String(),
 		PushName:  msg.Info.PushName,
-		FromMe:    msg.Info.IsFromMe,
+		IsFromMe:  msg.Info.IsFromMe,
 		Timestamp: msg.Info.Timestamp,
-		Type:      mediaType,
+		MediaType: mediaType,
 		Content:   content,
 	}
 

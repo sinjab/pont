@@ -12,6 +12,10 @@ import (
 const autoSyncThreshold = 24 * time.Hour
 const autoSyncTimeout = 30 * time.Second
 
+// autoSyncRetryAfter bounds how soon a TIMED-OUT quick-sync is retried:
+// an unconfirmed sync must not buy a full 24h of auto-sync suppression.
+const autoSyncRetryAfter = 10 * time.Minute
+
 // shouldAutoSync checks if an auto-sync is needed based on last sync time.
 func shouldAutoSync(db *store.DB) bool {
 	if NoAutoSync() {
@@ -84,13 +88,22 @@ func performQuickSync(client *whatsapp.Client, db *store.DB) error {
 	select {
 	case <-client.SyncComplete:
 		fmt.Fprintln(os.Stderr, "Sync complete.")
-	case <-time.After(autoSyncTimeout):
+		// Only a confirmed-complete sync earns a fresh timestamp.
+		if err := db.SetLastSyncTime(time.Now()); err != nil {
+			return fmt.Errorf("failed to update sync time: %w", err)
+		}
+	case <-time.After(boundedWaitTimeout(autoSyncTimeout)):
 		fmt.Fprintln(os.Stderr, "Sync timeout (continuing with available data).")
-	}
-
-	// Update last sync time regardless of timeout
-	if err := db.SetLastSyncTime(time.Now()); err != nil {
-		return fmt.Errorf("failed to update sync time: %w", err)
+		// Completion was never confirmed — recording a fresh sync time
+		// here would suppress auto-sync for a full 24h on unconfirmed
+		// data (the consult-flagged freshness lie). Instead stamp a
+		// synthetic time (now - threshold + retryAfter) so the 24h gate
+		// re-arms and the next attempt comes after autoSyncRetryAfter.
+		// The pre-sync "last sync" message reads this field BEFORE the
+		// stamp, so the synthetic value is never displayed.
+		if err := db.SetLastSyncTime(time.Now().Add(-autoSyncThreshold + autoSyncRetryAfter)); err != nil {
+			return fmt.Errorf("failed to update sync time: %w", err)
+		}
 	}
 
 	return nil

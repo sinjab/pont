@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-12
+
+### Added
+
+- Watch stream contract normalization: every live event line now
+  carries `schema_version: "1.0"`, and message events carry the
+  canonical `is_from_me` / `media_type` field names aligned with the
+  store models — derived in `MarshalJSON` so alias and canonical can
+  never disagree. The legacy `from_me` / `type` aliases remain as
+  duplicate output for one release cycle (autoreply and other
+  consumers keep working unchanged); they are removed in v3.0
+- `--timeout` is now wired: it governs every bounded wait — one-shot
+  `sync` (default 2m), connection auto-sync (default 30s), and the
+  `auth login` initial sync (default 5m). Passing `0` or omitting the
+  flag keeps each command's established default
+
+### Fixed
+
+- Auto-sync freshness lie: a quick-sync that TIMED OUT no longer
+  records a fresh last-sync time (which suppressed auto-sync for 24h
+  on unconfirmed data). Only a confirmed-complete sync stamps fresh;
+  a timed-out attempt re-arms the retry gate after 10 minutes
+
 ## [2.0.0] - 2026-10-11
 
 ### Changed

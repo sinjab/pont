@@ -63,12 +63,20 @@ func init() {
 	watchCmd.Flags().Int64Var(&watchSinceSeq, "since-seq", -1, "Replay journaled events after this seq, then continue live (adds \"seq\" to every line)")
 }
 
+// watchSchemaVersion stamps every LIVE-emitted event line (contract
+// normalization, Oct 11 2026 consult). Journaled lines replayed via
+// --since-seq are re-emitted verbatim from the journal, so events
+// journaled before this field existed carry no schema_version —
+// consumers must treat absence as legacy shape.
+const watchSchemaVersion = "1.0"
+
 type watchEvent struct {
-	Event   string                       `json:"event"`
-	TS      time.Time                    `json:"ts"`
-	Message *whatsapp.MessageDescription `json:"message,omitempty"`
-	Reason  string                       `json:"reason,omitempty"`
-	Count   int                          `json:"count,omitempty"`
+	Event         string                       `json:"event"`
+	TS            time.Time                    `json:"ts"`
+	SchemaVersion string                       `json:"schema_version"`
+	Message       *whatsapp.MessageDescription `json:"message,omitempty"`
+	Reason        string                       `json:"reason,omitempty"`
+	Count         int                          `json:"count,omitempty"`
 }
 
 // journalDB and seqMode wire the durable event journal into the emit path.
@@ -103,6 +111,7 @@ func emitWatchEvent(ev watchEvent) {
 	if ev.TS.IsZero() {
 		ev.TS = time.Now()
 	}
+	ev.SchemaVersion = watchSchemaVersion
 	body, err := json.Marshal(ev)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "watch: marshal event failed: %v\n", err)
