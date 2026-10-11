@@ -1,4 +1,4 @@
-module github.com/eddmann/whatsapp-cli
+module github.com/sinjab/whatsapp-cli
 
 go 1.26.0
 

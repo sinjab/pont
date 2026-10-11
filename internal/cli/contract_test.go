@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eddmann/whatsapp-cli/internal/store"
+	"github.com/sinjab/whatsapp-cli/internal/store"
 )
 
 var updateGoldens = flag.Bool("update", false, "update golden files instead of comparing")

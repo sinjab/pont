@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/eddmann/whatsapp-cli/internal/store"
-	"github.com/eddmann/whatsapp-cli/internal/whatsapp"
+	"github.com/sinjab/whatsapp-cli/internal/store"
+	"github.com/sinjab/whatsapp-cli/internal/whatsapp"
 )
 
 const autoSyncThreshold = 24 * time.Hour

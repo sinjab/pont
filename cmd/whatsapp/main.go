@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/eddmann/whatsapp-cli/internal/cli"
+	"github.com/sinjab/whatsapp-cli/internal/cli"
 )
 
 func main() {
