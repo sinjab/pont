@@ -121,7 +121,7 @@ func runAuthLogin(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(os.Stderr, "")
 
 	// Wait for initial sync (with timeout)
-	syncTimeout := 5 * time.Minute
+	syncTimeout := boundedWaitTimeout(5 * time.Minute)
 	select {
 	case <-ctx.Done():
 		// User interrupted

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	version = "2.0.0-sinjab"
+	version = "2.1.0-sinjab"
 
 	// Global flags
 	formatFlag   string
@@ -39,7 +39,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&fieldsFlag, "fields", "", "Comma-separated list of fields to include in output")
 	rootCmd.PersistentFlags().BoolVar(&noHeaderFlag, "no-header", false, "Skip header row in CSV/TSV output")
 	rootCmd.PersistentFlags().StringVar(&storeDir, "store", "", "Store directory (default: ~/.config/whatsapp-cli)")
-	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "Command timeout")
+	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for bounded waits: one-shot sync, connection auto-sync, auth initial sync (0 = per-command default)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noAutoSync, "no-auto-sync", false, "Skip automatic sync check")
 	rootCmd.PersistentFlags().BoolP("version", "V", false, "Show version")
@@ -52,6 +52,18 @@ func initConfig() {
 	if storeDir != "" {
 		SetStoreDir(storeDir)
 	}
+}
+
+// boundedWaitTimeout resolves the --timeout flag for a bounded wait
+// (one-shot sync, connection auto-sync, auth initial sync). The flag is
+// opt-in: zero or negative falls back to the caller's per-command default,
+// so every wait keeps its established behavior unless --timeout is passed
+// explicitly.
+func boundedWaitTimeout(def time.Duration) time.Duration {
+	if timeout > 0 {
+		return timeout
+	}
+	return def
 }
 
 // resolveFormatOnce caches the output format at startup

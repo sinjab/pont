@@ -83,7 +83,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "Connected. Performing one-time sync...")
 
 		// Wait for sync completion, timeout, or interrupt
-		syncTimeout := 2 * time.Minute
+		syncTimeout := boundedWaitTimeout(2 * time.Minute)
 		select {
 		case <-ctx.Done():
 			// User interrupted

@@ -26,16 +26,16 @@ func TestContractWatchEventShape(t *testing.T) {
 		SenderAlt:  "21639253782829@lid",
 		SenderName: "Yusra",
 		PushName:   "Umm Karim",
-		FromMe:     false,
+		IsFromMe:   false,
 		Timestamp:  ts,
-		Type:       "image",
+		MediaType:  "image",
 		DeviceSent: false,
 	}
 	minimal := MessageDescription{
 		ID:        "3EB0FIX0002",
 		ChatJID:   "21639253782829@s.whatsapp.net",
 		Sender:    "21639253782829@s.whatsapp.net",
-		FromMe:    true,
+		IsFromMe:  true,
 		Timestamp: ts,
 	}
 	deviceSent := minimal
