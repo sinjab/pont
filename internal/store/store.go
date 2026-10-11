@@ -28,10 +28,23 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open messages db: %w", err)
 	}
 
+	// WAL: cross-process readers (orchestration queries) stop blocking on
+	// the watch daemon's writes; busy_timeout rides along for the brief
+	// writer handoffs (P1).
+	var journalMode string
+	if err := mdb.QueryRow(`PRAGMA journal_mode=WAL`).Scan(&journalMode); err != nil {
+		_ = mdb.Close()
+		return nil, fmt.Errorf("failed to enable WAL: %w", err)
+	}
+	if _, err := mdb.Exec(`PRAGMA busy_timeout=5000`); err != nil {
+		_ = mdb.Close()
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
 	// Configure for SQLite single-writer limitation
 	mdb.SetMaxOpenConns(1)
 
-	if err := migrate(mdb); err != nil {
+	if err := migrateDB(mdb); err != nil {
 		_ = mdb.Close()
 		return nil, err
 	}
@@ -55,7 +68,10 @@ func (d *DB) CloseQuietly() {
 	_ = d.Close()
 }
 
-func migrate(db *sql.DB) error {
+// baselineSchema creates the base schema if needed (fresh databases) and
+// adopts pre-versioning databases (same statements, all IF NOT EXISTS).
+// Called from migration 1 only — NOT on every open.
+func baselineSchema(db execer) error {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS chats (
 			jid TEXT PRIMARY KEY,
@@ -135,9 +151,6 @@ func migrate(db *sql.DB) error {
 	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='messages_fts'`).Scan(&tbl); err != nil {
 		return fmt.Errorf("messages_fts not present after migration: %w", err)
 	}
-
-	// Rebuild index to sync with existing messages
-	_, _ = db.Exec(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`)
 
 	// Add sender_name column if it doesn't exist (for existing databases)
 	_, _ = db.Exec(`ALTER TABLE messages ADD COLUMN sender_name TEXT`)
