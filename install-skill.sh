@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-REPO="eddmann/whatsapp-cli"
+REPO="sinjab/pont"
 SKILL_URL="https://raw.githubusercontent.com/${REPO}/main/SKILL.md"
 
-echo "Installing whatsapp-cli agent skill..."
+echo "Installing pont agent skill..."
 echo ""
 
 # Install for Claude Code
@@ -29,5 +29,5 @@ echo ""
 echo "The skill will be auto-detected when you ask about WhatsApp messages."
 echo ""
 echo "Prerequisites:"
-echo "  - whatsapp-cli must be installed (curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | sh)"
-echo "  - Run 'whatsapp auth login' to authenticate"
+echo "  - pont must be installed (brew install sinjab/tap/pont)"
+echo "  - Run 'pont auth login' to authenticate (a whatsapp symlink is also installed)"
