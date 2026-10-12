@@ -53,17 +53,30 @@ func buildFixtureStore(t *testing.T) string {
 		}
 	}
 
+	// Fixture timestamps bind as UTC time.Time (mirrors production
+	// writes; UTC marshals with Z so goldens stay byte-stable). String
+	// RFC3339 inserts lexically mismatch the driver-format window
+	// bounds - the window golden was a false-negative null before
+	// this fix (caught by the store query unit tests, Oct 12 2026).
+	mustTime := func(s string) time.Time {
+		tv, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatalf("fixture time %q: %v", s, err)
+		}
+		return tv
+	}
+
 	exec(`INSERT INTO chats (jid, name, last_message_time) VALUES (?,?,?)`,
-		fixtureChatNamed, "Yusra", "2026-10-01T09:04:00Z")
+		fixtureChatNamed, "Yusra", mustTime("2026-10-01T09:04:00Z"))
 	exec(`INSERT INTO chats (jid, name, last_message_time) VALUES (?,?,?)`,
-		fixtureChatNoName, nil, "2026-10-01T09:02:00Z")
+		fixtureChatNoName, nil, mustTime("2026-10-01T09:02:00Z"))
 	exec(`INSERT INTO chats (jid, name, last_message_time) VALUES (?,?,?)`,
-		fixtureChatGroup, "Family Group", "2026-10-01T09:05:00Z")
+		fixtureChatGroup, "Family Group", mustTime("2026-10-01T09:05:00Z"))
 	exec(`INSERT INTO chats (jid, name, last_message_time) VALUES (?,?,?)`,
 		fixtureChatEmpty, "Empty Chat", nil)
 
 	exec(`INSERT INTO lid_mappings (lid, phone, name, updated_at) VALUES (?,?,?,?)`,
-		fixtureLID, fixtureLIDPhone, fixtureLIDName, "2026-10-01T08:00:00Z")
+		fixtureLID, fixtureLIDPhone, fixtureLIDName, mustTime("2026-10-01T08:00:00Z"))
 
 	type mrow struct {
 		id, chat, sender, senderName, content, ts, mediaType, filename any
@@ -91,7 +104,7 @@ func buildFixtureStore(t *testing.T) string {
 		}
 		exec(`INSERT INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, media_type, filename)
 			VALUES (?,?,?,?,?,?,?,?,?)`,
-			r.id, r.chat, r.sender, r.senderName, r.content, r.ts, isFromMe, r.mediaType, r.filename)
+			r.id, r.chat, r.sender, r.senderName, r.content, mustTime(r.ts.(string)), isFromMe, r.mediaType, r.filename)
 	}
 
 	exec(`INSERT INTO metadata (key, value) VALUES ('last_sync_time', ?)`, fixtureSyncFreshAs)

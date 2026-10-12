@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-10-12
+
+### Fixed
+
+- `doctor --connect` now waits (up to 10s) for the login handshake
+  before reporting `logged_in` — previously it read the flag
+  immediately after connect and reported healthy sessions as logged
+  out (the same race WithConnection already settles)
+
+### Changed
+
+- Test fixtures bind timestamps as UTC `time.Time`, mirroring
+  production writes. This exposed and fixed a false-negative golden:
+  the `messages --after/--before` window contract had been frozen as
+  an empty result — string-RFC3339 fixture rows never matched the
+  driver-format window bounds. The window filter is now actually
+  proven (golden regenerated and reviewed)
+
+### Added
+
+- Table-driven unit tests for the store query layer (consult §7, the
+  last unshipped recommendation): ListChats ordering/filters/subselects,
+  OldestMessageForChat incl. LID join, ListMessages windows/type
+  filters, SearchMessages FTS with chat/from/type filters, GetChatName
+- ParseTimeframe calendar tests (yesterday→today-midnight, week
+  anchors, month start, ordering invariants)
+
 ## [2.3.0] - 2026-10-12
 
 ### Added
