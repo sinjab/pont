@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -130,6 +131,15 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if db, err := store.Open(GetMessagesDBPath()); err == nil {
 			if client, err := whatsapp.New(db, GetStoreDir(), IsVerbose(), nil); err == nil {
 				if err := client.Connect(); err == nil {
+					// Handshake settle (same law as WithConnection):
+					// Connect() only opens the websocket — login
+					// completes asynchronously, and reading IsLoggedIn
+					// immediately reports healthy sessions as logged
+					// out (flag-race class, consult §7).
+					deadline := time.Now().Add(10 * time.Second)
+					for !client.IsLoggedIn() && time.Now().Before(deadline) {
+						time.Sleep(100 * time.Millisecond)
+					}
 					connected = client.IsConnected()
 					loggedIn = client.IsLoggedIn()
 					client.Disconnect()

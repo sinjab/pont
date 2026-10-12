@@ -1,1 +1,11 @@
-null
+[
+  {
+    "id": "3EB0FIX0002",
+    "chat_jid": "21639253782829@s.whatsapp.net",
+    "sender": "21639253782829@s.whatsapp.net",
+    "content": "All good, hamdulillah",
+    "timestamp": "2026-10-01T09:01:00Z",
+    "is_from_me": true,
+    "chat_name": "Yusra"
+  }
+]
