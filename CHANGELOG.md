@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-10-13
+
+### Fixed
+
+- **Sends are idempotent across websocket drops.** A send whose ack-wait
+  died with the socket reported plain failure while the frame had often
+  already been delivered — a caller's blind retry then duplicated the
+  message (proven in production Oct 13 2026). All five send paths (text,
+  media, forward, react, revoke) now run under a caller-generated message
+  ID; on `DisconnectedError` the CLI reconnects itself (one-shot commands
+  run with auto-reconnect off; whatsmeow's internal retry only waits 5s)
+  and re-sends ONCE with the SAME ID — WhatsApp retry semantics dedupe
+  by sender+ID, so at most one copy is ever visible. If the retry also
+  fails, the new `UnknownDeliveryError` carries the message ID and chat
+  so the caller can revoke (`pont delete <id> --chat <jid>`) instead of
+  resending blindly. Worst-case send wall time grows to ~3min during a
+  flap (75s per attempt + 30s reconnect window).
+
 ## [2.3.1] - 2026-10-12
 
 ### Fixed
