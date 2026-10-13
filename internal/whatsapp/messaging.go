@@ -68,7 +68,7 @@ func (c *Client) SendText(recipient, text, replyToMessageID string) (*SendMessag
 		msg.Conversation = protoString(text)
 	}
 
-	resp, err := c.WA.SendMessage(context.Background(), jid, msg)
+	resp, err := c.sendMessageIdempotent(context.Background(), jid, msg)
 	if err != nil {
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
@@ -205,7 +205,7 @@ func (c *Client) SendMedia(recipient, path, caption, replyToMessageID string) (*
 		}
 	}
 
-	resp, err := c.WA.SendMessage(context.Background(), jid, m)
+	resp, err := c.sendMessageIdempotent(context.Background(), jid, m)
 	if err != nil {
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
@@ -248,7 +248,7 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 		Conversation: protoString(content),
 	}
 
-	resp, err := c.WA.SendMessage(context.Background(), toJID, msg)
+	resp, err := c.sendMessageIdempotent(context.Background(), toJID, msg)
 	if err != nil {
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
@@ -320,7 +320,7 @@ func (c *Client) SendReaction(chatJID, messageID, emoji string, remove bool) (*S
 		},
 	}
 
-	resp, err := c.WA.SendMessage(context.Background(), jid, msg)
+	resp, err := c.sendMessageIdempotent(context.Background(), jid, msg)
 	if err != nil {
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
@@ -371,7 +371,7 @@ func (c *Client) RevokeMessage(chatJID, messageID string) (*SendMessageResult, e
 		},
 	}
 
-	resp, err := c.WA.SendMessage(context.Background(), jid, msg)
+	resp, err := c.sendMessageIdempotent(context.Background(), jid, msg)
 	if err != nil {
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
