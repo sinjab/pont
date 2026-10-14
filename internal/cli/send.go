@@ -46,7 +46,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(sendCmd)
 	sendCmd.Flags().StringVar(&sendFile, "file", "", "Send a file (image, video, audio, document)")
-	sendCmd.Flags().StringVar(&sendCaption, "caption", "", "Caption for media file")
+	sendCmd.Flags().StringVar(&sendCaption, "caption", "", "Caption for media file (image/video/document: attached; audio: delivered as a follow-up text message)")
 	sendCmd.Flags().StringVar(&sendReplyTo, "reply-to", "", "Message ID to reply to")
 }
 
@@ -71,10 +71,16 @@ func runSend(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("send failed: %w", err)
 		}
 
+		human := fmt.Sprintf("Sent message %s", result.MessageID)
+		if result.CaptionMessageID != "" {
+			human = fmt.Sprintf("Sent message %s + caption text %s (audio bubbles carry no caption field)", result.MessageID, result.CaptionMessageID)
+		}
+
 		return OutputResult(store.SendResult{
-			MessageID: result.MessageID,
-			ChatJID:   result.ChatJID,
-			Timestamp: result.Timestamp,
-		}, fmt.Sprintf("Sent message %s", result.MessageID))
+			MessageID:        result.MessageID,
+			CaptionMessageID: result.CaptionMessageID,
+			ChatJID:          result.ChatJID,
+			Timestamp:        result.Timestamp,
+		}, human)
 	})
 }

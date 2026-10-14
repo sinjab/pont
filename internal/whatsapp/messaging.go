@@ -28,8 +28,13 @@ type SendMessageResult struct {
 	Success   bool
 	Message   string
 	MessageID string
-	ChatJID   string
-	Timestamp string
+	// CaptionMessageID is set when a caption was delivered as a
+	// separate text message (audio lane: AudioMessage has no caption
+	// field in the protocol, so pont sends the caption right after
+	// the audio bubble instead of silently dropping it).
+	CaptionMessageID string
+	ChatJID          string
+	Timestamp        string
 }
 
 // DownloadMediaResult represents the result of downloading media from WhatsApp.
@@ -107,6 +112,15 @@ func (c *Client) SendMedia(recipient, path, caption, replyToMessageID string) (*
 
 	m := &waE2E.Message{}
 	base := filepath.Base(path)
+
+	// Audio messages (voice-note bubbles) carry no caption field in the
+	// WhatsApp protocol; a --caption on the audio lane is delivered as a
+	// separate text message right after the audio instead of being
+	// silently dropped (fix Oct 14 2026; previously the caption vanished).
+	followUpCaption := ""
+	if mediaType == whatsmeow.MediaAudio && caption != "" {
+		followUpCaption = caption
+	}
 
 	var quotedCtx *waE2E.ContextInfo
 	if replyToMessageID != "" {
@@ -210,13 +224,30 @@ func (c *Client) SendMedia(recipient, path, caption, replyToMessageID string) (*
 		return &SendMessageResult{Success: false, Message: err.Error()}, err
 	}
 
-	return &SendMessageResult{
+	result := &SendMessageResult{
 		Success:   true,
 		Message:   fmt.Sprintf("sent media to %s", recipient),
 		MessageID: resp.ID,
 		ChatJID:   jid.String(),
 		Timestamp: resp.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
-	}, nil
+	}
+
+	if followUpCaption != "" {
+		txt := &waE2E.Message{Conversation: protoString(followUpCaption)}
+		cresp, cerr := c.sendMessageIdempotent(context.Background(), jid, txt)
+		if cerr != nil {
+			result.Message = fmt.Sprintf(
+				"sent media to %s, but caption follow-up failed: %v (audio bubbles carry no caption field; re-send the caption as text)",
+				recipient, cerr)
+			return result, nil
+		}
+		result.CaptionMessageID = cresp.ID
+		result.Message = fmt.Sprintf(
+			"sent media to %s (caption delivered as separate text message %s — audio bubbles carry no caption field)",
+			recipient, cresp.ID)
+	}
+
+	return result, nil
 }
 
 // ForwardMessage forwards a message to a recipient.

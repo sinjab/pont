@@ -37,8 +37,12 @@ type Contact struct {
 // SendResult represents the result of sending a message.
 type SendResult struct {
 	MessageID string `json:"message_id"`
-	ChatJID   string `json:"chat_jid"`
-	Timestamp string `json:"timestamp"`
+	// CaptionMessageID is set when a media caption was delivered as a
+	// separate text message (audio lane — AudioMessage has no caption
+	// field in the WhatsApp protocol).
+	CaptionMessageID string `json:"caption_message_id,omitempty"`
+	ChatJID          string `json:"chat_jid"`
+	Timestamp        string `json:"timestamp"`
 }
 
 // DownloadResult represents the result of downloading media.
