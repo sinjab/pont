@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-10-14
+
+### Fixed
+
+- **Audio sends no longer silently drop `--caption`.** WhatsApp's
+  `AudioMessage` (the voice-note bubble pont's audio lane sends) has no
+  caption field in the protocol — the image/video/document branches
+  attached `--caption`, the audio branch dropped it without a warning
+  (proven in production Oct 14 2026: a song sent as `.ogg` + caption
+  arrived caption-less). pont now delivers the caption as a separate
+  text message right after the audio bubble and reports both IDs
+  (`caption_message_id` in the JSON output); if the follow-up cannot be
+  sent, the result says so explicitly instead of pretending success.
+  `--caption` help text documents the audio-lane behavior.
+
 ## [2.3.2] - 2026-10-13
 
 ### Fixed
