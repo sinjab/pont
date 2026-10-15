@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -47,11 +48,53 @@ func init() {
 	_ = reactCmd.MarkFlagRequired("chat")
 }
 
+// reactEmojiShortcodes maps common shortcode names to emoji characters.
+// WhatsApp servers silently drop reactions whose text is not an actual
+// emoji: a shortcode like "thumbsup" (this CLI's own documented example)
+// or a bare U+2764 heart without the FE0F variation selector goes out
+// with a clean receipt and journal event but never appears in the chat
+// (proven Oct 9 + Oct 14 2026, yusra LID chat).
+var reactEmojiShortcodes = map[string]string{
+	"thumbsup":    "👍",
+	"thumbup":     "👍",
+	"heart":       "❤️",
+	"love":        "❤️",
+	"laugh":       "😂",
+	"laughing":    "😂",
+	"wow":         "😮",
+	"surprised":   "😮",
+	"sad":         "😢",
+	"cry":         "😢",
+	"tears":       "😢",
+	"pray":        "🙏",
+	"prayer":      "🙏",
+	"foldedhands": "🙏",
+	"ok":          "👌",
+	"fire":        "🔥",
+	"party":       "🎉",
+	"tada":        "🎉",
+	"clap":        "👏",
+	"100":         "💯",
+}
+
+// normalizeReactEmoji resolves a shortcode to its emoji and appends the
+// FE0F variation selector to a bare U+2764 heart (WhatsApp requires it).
+func normalizeReactEmoji(s string) string {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	if e, ok := reactEmojiShortcodes[lower]; ok {
+		return e
+	}
+	if s == "❤" {
+		return "❤️"
+	}
+	return s
+}
+
 func runReact(cmd *cobra.Command, args []string) error {
 	messageID := args[0]
 	emoji := ""
 	if len(args) > 1 {
-		emoji = args[1]
+		emoji = normalizeReactEmoji(args[1])
 	}
 
 	return WithConnection(func(db *store.DB, client *whatsapp.Client) error {

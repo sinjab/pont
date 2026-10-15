@@ -317,39 +317,28 @@ func (c *Client) SendReaction(chatJID, messageID, emoji string, remove bool) (*S
 		reactionText = ""
 	}
 
-	// The reaction key MUST carry the original author's JID in Participant
-	// when reacting to someone else's message — WhatsApp servers silently
-	// drop the reaction otherwise (proven Oct 9 2026 in LID chats: receipt
-	// returned, nothing delivered). The store's `sender` column holds a
-	// BARE number (no suffix), so derive the participant JID:
-	// - 1:1 chat: the peer IS the chat JID.
-	// - group chat: participants are addressed by LID JID post-privacy-
-	//   update, so bare sender digits + "@lid" (untested — no group case
-	//   verified yet).
-	keyParticipant := ""
+	// Build the reaction via whatsmeow's canonical builders (BuildReaction +
+	// BuildMessageKey) for exact upstream parity. Our previous hand-rolled
+	// key was wrong for 1:1 chats: it carried a Participant (canonical sets
+	// that ONLY for group chats) and omitted SenderTimestampMS — reactions
+	// went out with clean receipts + watcher journal events, but the server
+	// silently dropped them (proven Oct 9 + Oct 14-15 2026, 1:1 LID chat;
+	// upstream BuildMessageKey: user-server chats take NO Participant).
+	//
+	// Canonical sender semantics: empty JID = own message (FromMe=true);
+	// the original author's JID = someone else's (FromMe=false; Participant
+	// set by BuildMessageKey for non-user servers only, i.e. groups).
+	var senderJID types.JID
 	if !isFromMe {
 		if strings.HasSuffix(chatJID, "@g.us") {
-			keyParticipant = sender + "@lid"
+			// Store's sender column holds bare LID digits for group senders.
+			senderJID = types.NewJID(sender, types.HiddenUserServer)
 		} else {
-			keyParticipant = jid.String()
+			senderJID = jid // the 1:1 peer
 		}
 	}
 
-	key := &waCommon.MessageKey{
-		RemoteJID: protoString(jid.String()),
-		FromMe:    protoBool(isFromMe),
-		ID:        protoString(messageID),
-	}
-	if keyParticipant != "" {
-		key.Participant = protoString(keyParticipant)
-	}
-
-	msg := &waE2E.Message{
-		ReactionMessage: &waE2E.ReactionMessage{
-			Key:  key,
-			Text: protoString(reactionText),
-		},
-	}
+	msg := c.WA.BuildReaction(jid, senderJID, messageID, reactionText)
 
 	resp, err := c.sendMessageIdempotent(context.Background(), jid, msg)
 	if err != nil {
