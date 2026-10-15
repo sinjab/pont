@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-10-15
+
+### Fixed
+
+- **Reactions now deliver.** `react` previously built the reaction key by
+  hand: it set `Participant` in 1:1 chats (canonical `BuildMessageKey`
+  sets that ONLY for group chats) and omitted `SenderTimestampMS`. The
+  malformed reaction was accepted by the server — clean receipt, watcher
+  journal event — but silently dropped, never appearing in the chat
+  (proven Oct 9 + Oct 14-15 2026, 1:1 LID chat). `SendReaction` now
+  delegates to whatsmeow's own `BuildReaction`/`BuildMessageKey` for
+  exact upstream parity.
+- **Emoji shortcodes work.** The CLI's own documented examples
+  (`react <id> "thumbsup"`) never worked — there was no shortcode
+  mapping, so the literal text `thumbsup` shipped as the "emoji" and the
+  server dropped it. Common shortcodes (thumbsup, heart, laugh, wow,
+  sad, pray, fire, party, clap, 100...) now map to real emoji, and a
+  bare U+2764 heart gains the required FE0F variation selector.
+
 ## [2.4.0] - 2026-10-14
 
 ### Fixed
