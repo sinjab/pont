@@ -37,6 +37,12 @@ jobs:
       # ship Go and GOTOOLCHAIN=auto bootstraps whatever go.mod pins.
       - name: Go toolchain sanity
         run: |
+          if ! command -v go >/dev/null; then
+            GO_BIN="$(ls -d "$AGENT_TOOLSDIRECTORY"/go/*/arm64/bin "$AGENT_TOOLSDIRECTORY"/go/*/x64/bin 2>/dev/null | sort -V | tail -1)"
+            echo "Activated toolcache Go: $GO_BIN"
+            echo "$GO_BIN" >> "$GITHUB_PATH"
+            export PATH="$GO_BIN:$PATH"
+          fi
           go version
           go env GOTOOLCHAIN
 
