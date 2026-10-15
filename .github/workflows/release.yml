@@ -31,10 +31,14 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
+      # No actions/setup-go: codeload stopped serving its tarballs
+      # (404 by SHA for both v6 and v7 pins, Oct 15 2026; runners with a
+      # warm cache still work, macOS runners did not). The runner images
+      # ship Go and GOTOOLCHAIN=auto bootstraps whatever go.mod pins.
+      - name: Go toolchain sanity
+        run: |
+          go version
+          go env GOTOOLCHAIN
 
       - name: Set version
         run: make set-version VERSION=${{ steps.version.outputs.version }}
