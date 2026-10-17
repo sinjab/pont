@@ -261,18 +261,114 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 		return &SendMessageResult{Success: false, Message: "invalid recipient"}, err
 	}
 
-	// Query original message content
-	var content, mediaType string
+	// Query original message content + media metadata.
+	var content, mediaType, filename, url string
+	var mediaKey, fileSHA256, fileEncSHA256 []byte
+	var fileLength uint64
 	row := c.Store.Messages.QueryRow(`
-		SELECT content, COALESCE(media_type, '') FROM messages WHERE id = ? AND chat_jid = ?
+		SELECT content, COALESCE(media_type, ''), COALESCE(filename, ''), COALESCE(url, ''),
+		       media_key, file_sha256, file_enc_sha256, file_length
+		FROM messages WHERE id = ? AND chat_jid = ?
 	`, messageID, fromChatJID)
-	if err := row.Scan(&content, &mediaType); err != nil {
+	if err := row.Scan(&content, &mediaType, &filename, &url, &mediaKey, &fileSHA256, &fileEncSHA256, &fileLength); err != nil {
 		return &SendMessageResult{Success: false, Message: "message not found"}, err
 	}
 
-	// For now, only forward text messages
+	// Media forward (v2.4.2): reference-forward the ORIGINAL media — the
+	// stored url/direct-path, media key and hashes are re-sent as-is, the
+	// way official clients forward (no re-download, no re-upload; instant
+	// even for large media). The bubble carries the WhatsApp "Forwarded"
+	// label via ContextInfo. Media captions live in `content`.
 	if mediaType != "" {
-		return &SendMessageResult{Success: false, Message: "media forwarding not supported"}, fmt.Errorf("media forwarding not yet supported")
+		if mediaType == "sticker" {
+			return &SendMessageResult{Success: false, Message: "sticker forwarding not supported"}, fmt.Errorf("sticker forwarding not supported")
+		}
+		if url == "" || len(mediaKey) == 0 || len(fileSHA256) == 0 || len(fileEncSHA256) == 0 || fileLength == 0 {
+			return &SendMessageResult{Success: false, Message: "incomplete media info"}, fmt.Errorf("incomplete media info for %s (message predates media metadata capture — re-sync, or download and re-send manually)", messageID)
+		}
+
+		_, mime := classify(filename)
+		directPath := extractDirectPathFromURL(url)
+		fwdCtx := &waE2E.ContextInfo{
+			IsForwarded:     protoBool(true),
+			ForwardingScore: protoUint32(1),
+		}
+
+		m := &waE2E.Message{}
+		switch classifyToWA(mediaType) {
+		case whatsmeow.MediaImage:
+			m.ImageMessage = &waE2E.ImageMessage{
+				Caption:       protoString(content),
+				Mimetype:      protoString(mime),
+				URL:           protoString(url),
+				DirectPath:    protoString(directPath),
+				MediaKey:      mediaKey,
+				FileEncSHA256: fileEncSHA256,
+				FileSHA256:    fileSHA256,
+				FileLength:    &fileLength,
+				ContextInfo:   fwdCtx,
+			}
+		case whatsmeow.MediaVideo:
+			m.VideoMessage = &waE2E.VideoMessage{
+				Caption:       protoString(content),
+				Mimetype:      protoString(mime),
+				URL:           protoString(url),
+				DirectPath:    protoString(directPath),
+				MediaKey:      mediaKey,
+				FileEncSHA256: fileEncSHA256,
+				FileSHA256:    fileSHA256,
+				FileLength:    &fileLength,
+				ContextInfo:   fwdCtx,
+			}
+		case whatsmeow.MediaDocument:
+			title := filename
+			if title == "" {
+				title = "Document"
+			}
+			m.DocumentMessage = &waE2E.DocumentMessage{
+				Title:         protoString(title),
+				FileName:      protoString(title),
+				Caption:       protoString(content),
+				Mimetype:      protoString(mime),
+				URL:           protoString(url),
+				DirectPath:    protoString(directPath),
+				MediaKey:      mediaKey,
+				FileEncSHA256: fileEncSHA256,
+				FileSHA256:    fileSHA256,
+				FileLength:    &fileLength,
+				ContextInfo:   fwdCtx,
+			}
+		case whatsmeow.MediaAudio:
+			// Voice notes are Opus-in-OGG on WhatsApp; seconds/waveform are
+			// not persisted in the store, so the forwarded bubble plays fine
+			// without a duration chip.
+			m.AudioMessage = &waE2E.AudioMessage{
+				Mimetype:      protoString("audio/ogg; codecs=opus"),
+				URL:           protoString(url),
+				DirectPath:    protoString(directPath),
+				MediaKey:      mediaKey,
+				FileEncSHA256: fileEncSHA256,
+				FileSHA256:    fileSHA256,
+				FileLength:    &fileLength,
+				PTT:           protoBool(true),
+				ContextInfo:   fwdCtx,
+			}
+		default:
+			return &SendMessageResult{Success: false, Message: "unsupported media type"}, fmt.Errorf("unsupported media type %q", mediaType)
+		}
+
+		resp, err := c.sendMessageIdempotent(context.Background(), toJID, m)
+		if err != nil {
+			return &SendMessageResult{Success: false, Message: err.Error()}, err
+		}
+
+		return &SendMessageResult{
+			Success:   true,
+			Message:   fmt.Sprintf("forwarded %s to %s", mediaType, recipient),
+			MessageID: resp.ID,
+			ChatJID:   toJID.String(),
+			Timestamp: resp.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		}, nil
 	}
 
 	msg := &waE2E.Message{

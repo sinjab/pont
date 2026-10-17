@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-10-17
+
+### Added
+
+- **Media forwarding.** `forward` previously hard-failed on any non-text
+  message ("media forwarding not yet supported"); forwarding media meant
+  manually downloading and re-sending files. `ForwardMessage` now
+  reference-forwards the original media — the stored url/direct-path,
+  media key and hashes are re-sent as-is, the way official clients
+  forward: no re-download, no re-upload, instant even for large media.
+  image / video / audio / document are supported; stickers are rejected
+  with an honest error; messages that predate media metadata capture
+  fail with "incomplete media info" plus guidance. Media captions ride
+  along (they live in the store's `content`), documents keep their
+  original filename, and forwarded bubbles carry the WhatsApp
+  «Forwarded» label via `ContextInfo.IsForwarded` + `ForwardingScore`.
+  Forwarded voice notes play as normal PTT bubbles without a duration
+  chip (seconds/waveform are not persisted in the store). Live-proven
+  Oct 17 2026 (image forward to self-chat, clean receipt, rendering
+  confirmed by the operator).
+
 ## [2.4.1] - 2026-10-15
 
 ### Fixed
