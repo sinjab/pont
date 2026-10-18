@@ -96,7 +96,7 @@ func resolveFormatOnce() {
 
 // Execute runs the root command
 func Execute() error {
-	return rootCmd.Execute()
+	return executeCommand(rootCmd)
 }
 
 // GetFormat returns the cached output format

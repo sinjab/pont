@@ -59,7 +59,7 @@ func (c *Client) sendMessageIdempotent(ctx context.Context, jid types.JID, msg *
 
 	resp, err := c.WA.SendMessage(ctx, jid, msg, whatsmeow.SendRequestExtra{ID: id})
 	if err == nil {
-		return resp, nil
+		return validateSendResponse(resp)
 	}
 
 	var discErr *whatsmeow.DisconnectedError
@@ -87,7 +87,14 @@ func (c *Client) sendMessageIdempotent(ctx context.Context, jid types.JID, msg *
 
 	resp2, err2 := c.WA.SendMessage(ctx, jid, msg, whatsmeow.SendRequestExtra{ID: id})
 	if err2 == nil {
-		return resp2, nil
+		return validateSendResponse(resp2)
 	}
 	return resp2, &UnknownDeliveryError{ID: id, ChatJID: jid.String(), Err: err2}
+}
+
+func validateSendResponse(resp whatsmeow.SendResponse) (whatsmeow.SendResponse, error) {
+	if resp.ID == "" {
+		return resp, fmt.Errorf("send returned no message_id")
+	}
+	return resp, nil
 }

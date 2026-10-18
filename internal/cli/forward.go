@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sinjab/pont/internal/store"
-	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var forwardFrom string
@@ -34,9 +33,9 @@ func runForward(cmd *cobra.Command, args []string) error {
 	toJID := args[0]
 	messageID := args[1]
 
-	return WithConnection(func(db *store.DB, client *whatsapp.Client) error {
+	return withMessageSender(func(client messageSender) error {
 		result, err := client.ForwardMessage(toJID, messageID, forwardFrom)
-		if err != nil {
+		if err := validateSendResult(result, err); err != nil {
 			return fmt.Errorf("forward failed: %w", err)
 		}
 

@@ -35,3 +35,14 @@ func TestUnknownDeliveryErrorText(t *testing.T) {
 		t.Error("UnknownDeliveryError must survive wrapping for errors.As at the CLI layer")
 	}
 }
+
+func TestValidateSendResponse(t *testing.T) {
+	if _, err := validateSendResponse(whatsmeow.SendResponse{}); err == nil {
+		t.Fatal("missing message_id must fail, including for audio caption follow-ups")
+	}
+	response := whatsmeow.SendResponse{ID: "SENT123"}
+	got, err := validateSendResponse(response)
+	if err != nil || got.ID != response.ID {
+		t.Fatalf("valid response rejected: %+v, %v", got, err)
+	}
+}

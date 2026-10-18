@@ -235,18 +235,27 @@ func (c *Client) SendMedia(recipient, path, caption, replyToMessageID string) (*
 	if followUpCaption != "" {
 		txt := &waE2E.Message{Conversation: protoString(followUpCaption)}
 		cresp, cerr := c.sendMessageIdempotent(context.Background(), jid, txt)
-		if cerr != nil {
-			result.Message = fmt.Sprintf(
-				"sent media to %s, but caption follow-up failed: %v (audio bubbles carry no caption field; re-send the caption as text)",
-				recipient, cerr)
-			return result, nil
-		}
-		result.CaptionMessageID = cresp.ID
-		result.Message = fmt.Sprintf(
-			"sent media to %s (caption delivered as separate text message %s — audio bubbles carry no caption field)",
-			recipient, cresp.ID)
+		return completeMediaCaption(result, recipient, cresp, cerr)
 	}
 
+	return result, nil
+}
+
+func completeMediaCaption(result *SendMessageResult, recipient string, resp whatsmeow.SendResponse, err error) (*SendMessageResult, error) {
+	if err == nil {
+		_, err = validateSendResponse(resp)
+	}
+	if err != nil {
+		result.Success = false
+		result.Message = fmt.Sprintf(
+			"sent media %s to %s, but caption follow-up failed (audio bubbles carry no caption field)",
+			result.MessageID, recipient)
+		return result, fmt.Errorf("%s: %w", result.Message, err)
+	}
+	result.CaptionMessageID = resp.ID
+	result.Message = fmt.Sprintf(
+		"sent media to %s (caption delivered as separate text message %s — audio bubbles carry no caption field)",
+		recipient, resp.ID)
 	return result, nil
 }
 

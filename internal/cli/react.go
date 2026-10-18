@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/sinjab/pont/internal/store"
-	"github.com/sinjab/pont/internal/whatsapp"
 )
 
 var (
@@ -97,9 +96,9 @@ func runReact(cmd *cobra.Command, args []string) error {
 		emoji = normalizeReactEmoji(args[1])
 	}
 
-	return WithConnection(func(db *store.DB, client *whatsapp.Client) error {
+	return withMessageSender(func(client messageSender) error {
 		result, err := client.SendReaction(reactChat, messageID, emoji, reactRemove)
-		if err != nil {
+		if err := validateSendResult(result, err); err != nil {
 			return fmt.Errorf("react failed: %w", err)
 		}
 

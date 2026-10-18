@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Failed sends exit non-zero.** `send` (text and media), `forward`,
+  `react`, and `delete` reject missing receipts, unsuccessful results,
+  and empty message IDs before printing success. Audio caption follow-up
+  failures now propagate an error, including the already-sent media ID.
+  Command failures exit 1 with errors on stderr; argument/flag validation
+  errors exit 2; successful actions exit 0.
+
 ### Added
 
 - **Per-instance data directories.** `--data-dir <path>` (and env

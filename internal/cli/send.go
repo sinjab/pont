@@ -57,7 +57,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 		message = strings.Join(args[1:], " ")
 	}
 
-	return WithConnection(func(db *store.DB, client *whatsapp.Client) error {
+	return withMessageSender(func(client messageSender) error {
 		var result *whatsapp.SendMessageResult
 		var err error
 
@@ -67,7 +67,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 			result, err = client.SendText(jid, message, sendReplyTo)
 		}
 
-		if err != nil {
+		if err := validateSendResult(result, err); err != nil {
 			return fmt.Errorf("send failed: %w", err)
 		}
 
