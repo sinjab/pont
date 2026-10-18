@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Per-instance data directories.** `--data-dir <path>` (and env
+  `PONT_DATA_DIR`; flag beats env, env beats default, `--store` still
+  overrides both) points a pont process's ENTIRE state — session store,
+  message DBs, media, aliases, watch journal — at one arbitrary
+  directory, created 0700 on first use. With neither given, path
+  resolution is byte-identical to before. This is the seam for running
+  N isolated pont processes (one per WhatsApp number): two data dirs
+  hold two fully separate stores, proven by test — a journal append in
+  instance A is invisible to instance B's `watch`.
+- **`watch` surfaces delivery receipts.** whatsmeow receipt events
+  (verified against the pinned whatsmeow: this version carries them as
+  `events.Receipt` — there is no `events.MessageAck`) are now journaled
+  and emitted as `message.ack` events carrying the chat JID, affected
+  `message_ids` (server order), `receipt_type` (whatsmeow's zero-value
+  type surfaces explicitly as `delivered`; read / read-self / played /
+  played-self and friends pass through), the receipt's own `timestamp`,
+  `sender` (the reader, for group reads) and `is_from_me`. The full
+  watch contract holds: journal-before-emit, `--since-seq` replay,
+  Unix-socket fan-out and `--on-message` hooks (which now fire on
+  message.ack too) — and no sink failure can kill the watcher. Receipts
+  honor the same `--jid` filter as messages. `schema_version` bumps
+  1.0 → 1.1: journaled lines replay verbatim, so pre-1.1 journal lines
+  keep their original stamp.
+
 ## [2.4.2] - 2026-10-17
 
 ### Added

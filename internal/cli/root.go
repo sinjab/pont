@@ -18,6 +18,7 @@ var (
 	jqExpr       string
 	noHeaderFlag bool
 	storeDir     string
+	dataDir      string
 	timeout      time.Duration
 	verbose      bool
 	noAutoSync   bool
@@ -41,6 +42,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&jqExpr, "jq", "", "gojq expression over the JSON output (whole payload for json, per line for jsonl; strings print bare)")
 	rootCmd.PersistentFlags().BoolVar(&noHeaderFlag, "no-header", false, "Skip header row in CSV/TSV output")
 	rootCmd.PersistentFlags().StringVar(&storeDir, "store", "", "Store directory (default: ~/.config/whatsapp-cli)")
+	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", "", "Data directory holding ALL state (session, message DBs, media, aliases; created 0700 on first use). Overrides $PONT_DATA_DIR; --store wins over both")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 0, "Timeout for bounded waits: one-shot sync, connection auto-sync, auth initial sync (0 = per-command default)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noAutoSync, "no-auto-sync", false, "Skip automatic sync check")
@@ -51,8 +53,14 @@ func init() {
 }
 
 func initConfig() {
-	if storeDir != "" {
+	// Explicit flags beat the environment (PONT_DATA_DIR is read inside
+	// GetConfigDir). --store stays the most-specific override for
+	// backwards compatibility; --data-dir is its per-instance alias.
+	switch {
+	case storeDir != "":
 		SetStoreDir(storeDir)
+	case dataDir != "":
+		SetStoreDir(dataDir)
 	}
 }
 

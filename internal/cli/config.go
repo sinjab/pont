@@ -13,11 +13,22 @@ func SetStoreDir(dir string) {
 	customStoreDir = dir
 }
 
-// GetConfigDir returns the config directory path
-// Uses XDG_CONFIG_HOME if set, otherwise ~/.config/whatsapp-cli
+// GetConfigDir returns the config directory path — the root of ALL pont
+// state (session store, message DBs, media, aliases).
+//
+// Precedence: explicit flag (--store or --data-dir, wired via
+// SetStoreDir in initConfig) > PONT_DATA_DIR env > XDG_CONFIG_HOME >
+// ~/.config/whatsapp-cli. With no flag and no env var the resolution
+// is byte-identical to the pre-data-dir behavior.
 func GetConfigDir() string {
 	if customStoreDir != "" {
 		return customStoreDir
+	}
+
+	// PONT_DATA_DIR redirects the entire state of this process — the
+	// per-instance isolation seam (one pont per WhatsApp number).
+	if dataDir := os.Getenv("PONT_DATA_DIR"); dataDir != "" {
+		return dataDir
 	}
 
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {

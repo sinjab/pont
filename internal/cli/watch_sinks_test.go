@@ -3,9 +3,10 @@ package cli
 // Sink contract tests (P2 tail): the socket broadcast bus must deliver
 // the same JSONL bytes as stdout, survive subscriber death without
 // touching the watcher, and the --on-message hook must fire on message
-// events only, receiving the full line on stdin.
+// and message.ack events only, receiving the full line on stdin.
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"net"
 	"os"
@@ -65,7 +66,7 @@ func TestSocketSinkBroadcastAndSurvival(t *testing.T) {
 	if err := json.Unmarshal([]byte(line), &m); err != nil {
 		t.Fatalf("socket line not JSON: %q: %v", line, err)
 	}
-	if m["event"] != "connected" || m["schema_version"] != "1.0" {
+	if m["event"] != "connected" || m["schema_version"] != "1.1" {
 		t.Errorf("socket payload wrong: %s", line)
 	}
 
@@ -94,38 +95,60 @@ func TestSocketSinkBroadcastAndSurvival(t *testing.T) {
 	}
 }
 
-func TestMessageHookFiresOnMessagesOnly(t *testing.T) {
+func TestMessageHookFiresOnMessageEvents(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "hook-out")
-	watchOnMessage = "cat > " + out
+	watchOnMessage = "cat >> " + out
 	defer func() { watchOnMessage = "" }()
 
-	emitWatchEvent(watchEvent{Event: "connected"}) // not a message: no hook
+	emitWatchEvent(watchEvent{Event: "connected"}) // not a message event: no hook
 	emitWatchEvent(watchEvent{Event: "message", Message: &whatsapp.MessageDescription{
 		ID:      "3EB0SINKTEST01",
 		ChatJID: "971500000000@s.whatsapp.net",
 		Content: "hook me",
 	}})
+	emitWatchEvent(watchEvent{Event: "message.ack", Ack: &watchAckEvent{
+		ChatJID:     "971500000000@s.whatsapp.net",
+		MessageIDs:  []string{"3EB0SINKTEST01"},
+		ReceiptType: "delivered",
+	}})
 
+	// Two hook invocations expected (message + message.ack); they run
+	// async, in either order.
 	deadline := time.Now().Add(3 * time.Second)
+	var got []byte
 	for {
-		if _, err := os.Stat(out); err == nil {
+		var err error
+		got, err = os.ReadFile(out)
+		if err == nil && len(bytes.Split(bytes.TrimSpace(got), []byte("\n"))) == 2 {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("hook output never appeared at %s", out)
+			t.Fatalf("hook output never held 2 lines at %s: %q", out, got)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	got, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatalf("read hook output: %v", err)
+
+	kinds := map[string]bool{}
+	for _, l := range bytes.Split(bytes.TrimSpace(got), []byte("\n")) {
+		var m map[string]any
+		if err := json.Unmarshal(l, &m); err != nil {
+			t.Fatalf("hook stdin was not the JSON line: %q: %v", l, err)
+		}
+		switch m["event"] {
+		case "message":
+			kinds["message"] = true
+		case "message.ack":
+			kinds["message.ack"] = true
+			ack, _ := m["ack"].(map[string]any)
+			if ack == nil || ack["receipt_type"] != "delivered" {
+				t.Errorf("message.ack hook payload missing ack data: %q", l)
+			}
+		default:
+			t.Errorf("hook fired for unexpected event kind: %q", l)
+		}
 	}
-	var m map[string]any
-	if err := json.Unmarshal(got, &m); err != nil {
-		t.Fatalf("hook stdin was not the JSON line: %q", got)
-	}
-	if m["event"] != "message" {
-		t.Errorf("hook payload event = %v, want message", m["event"])
+	if !kinds["message"] || !kinds["message.ack"] {
+		t.Errorf("hook did not fire for both kinds: %v (payload %q)", kinds, got)
 	}
 }

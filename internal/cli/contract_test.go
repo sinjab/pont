@@ -119,7 +119,8 @@ func resetFlagGlobals() {
 	formatFlag, fieldsFlag = "", ""
 	jqExpr = ""
 	noHeaderFlag, verbose, noAutoSync = false, false, false
-	storeDir = ""
+	storeDir, dataDir = "", ""
+	SetStoreDir("")
 	timeout = 0
 	resolvedFormat = ""
 

@@ -31,7 +31,7 @@ Install: `brew install sinjab/tap/pont`.
 - Script and automate — composable with `--jq`, pipes, xargs, and standard Unix tools
 - [AI agent ready](#ai-agent-integration) — install the skill for Claude, Cursor, and other assistants
 - Flexible output — JSON for scripts, CSV for spreadsheets, tables for humans
-- Durable live event stream — `watch` journals every event before emitting it, replays gaps with `--since-seq`, and can fan out to Unix-socket subscribers and per-message hooks
+- Durable live event stream — `watch` journals every event before emitting it, replays gaps with `--since-seq`, surfaces delivery receipts (`message.ack`), and can fan out to Unix-socket subscribers and per-message hooks
 
 ## Installation
 
@@ -84,6 +84,7 @@ pont search "meeting tomorrow"
 | `--fields`      | Comma-separated fields to include in output           |
 | `--no-header`   | Skip header row in CSV/TSV output                     |
 | `--store DIR`   | Override store directory                              |
+| `--data-dir DIR`| Point ALL state (session, DBs, media, aliases) at DIR; created 0700 on first use. Flag > `$PONT_DATA_DIR` > default |
 | `--timeout DUR` | Bound the sync/auth waits (0 = per-command default) |
 | `--jq EXPR`     | gojq expression over the JSON output (strings print bare) |
 | `-v, --verbose` | Verbose logging to stderr                             |
@@ -167,10 +168,18 @@ pont doctor [--connect]
 pont watch                          # Stream live events as JSON lines
 pont watch --since-seq 42           # Replay journaled events after seq 42, then live
 pont watch --socket /path/watch.sock  # Broadcast every live line to Unix-socket subscribers
-pont watch --on-message 'handler.sh'  # Run a command per message event (JSON on stdin)
+pont watch --on-message 'handler.sh'  # Run a command per message/message.ack event (JSON on stdin)
 ```
 
 Every event is journaled durably **before** it is emitted — a restarted consumer loses nothing. Message events carry `schema_version`, canonical `is_from_me` / `media_type` fields (legacy `from_me` / `type` aliases remain for now), and no sink failure can kill the watcher.
+
+Delivery receipts surface as `message.ack` events (schema_version 1.1): delivered / read / read-self / played confirmations for outgoing messages, plus other-device reads of incoming ones. They honor `--jid` filtering, replay via `--since-seq`, and reach the `--socket` fan-out and `--on-message` hooks like any message event:
+
+```json
+{"event":"message.ack","ts":"2026-10-18T09:31:02Z","schema_version":"1.1","ack":{"chat_jid":"971500000000@s.whatsapp.net","message_ids":["3EB0ACK0009"],"receipt_type":"read","timestamp":"2026-10-18T09:31:00Z","is_from_me":true}}
+```
+
+`ack.sender` names the receipt issuer when it differs from the chat (group reads); `message_ids` preserves server order (Android sends newest-first, iOS oldest-first).
 
 ## Timeframe Presets
 
@@ -219,11 +228,24 @@ All data is stored in `~/.config/whatsapp-cli/`:
 └── aliases.json        # Local JID aliases
 ```
 
+### Per-Instance Data Directories
+
+Point a pont process's **entire** state at an arbitrary directory with `--data-dir DIR` or `PONT_DATA_DIR` (the flag wins; both beat the default, and `--store` still overrides everything for backwards compatibility). The directory is created with 0700 perms on first use.
+
+This is the seam for running N isolated pont processes — one per WhatsApp number: each gets its own session, message DBs, media, aliases and watch journal, so a `watch` on instance A can never see instance B's events.
+
+```bash
+pont auth login --data-dir ~/pont/number-a     # pair once per instance
+pont watch --data-dir ~/pont/number-a          # journal + stream, isolated
+PONT_DATA_DIR=~/pont/number-b pont send <jid> 'hi'
+```
+
 ### Environment Variables
 
 | Variable          | Description                                          |
 | ----------------- | ---------------------------------------------------- |
 | `WHATSAPP_FORMAT` | Default output format (json, jsonl, csv, tsv, human) |
+| `PONT_DATA_DIR`   | Data directory for ALL state (overridden by `--data-dir`) |
 | `XDG_CONFIG_HOME` | Override config directory base                       |
 
 ## AI Agent Integration

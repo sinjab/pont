@@ -2,7 +2,8 @@ package cli
 
 // Freezes the LIVE watch-event JSON envelope (the watch stream has no
 // fixture-store goldens — this is its contract freeze):
-//   - every live line carries schema_version "1.0"
+//   - every live line carries schema_version "1.1" (bumped from 1.0
+//     with the message.ack event kind, Oct 18 2026)
 //   - message events carry the canonical is_from_me / media_type fields
 //     (store-model alignment, Oct 11 2026 consult) ALONGSIDE the legacy
 //     from_me / type aliases, which stay load-bearing for downstream
@@ -91,8 +92,8 @@ func TestWatchEventEnvelopeContract(t *testing.T) {
 		if m == nil {
 			t.Fatalf("missing %s event in emit output", name)
 		}
-		if got := m["schema_version"]; got != "1.0" {
-			t.Errorf("%s: schema_version = %v, want \"1.0\"", name, got)
+		if got := m["schema_version"]; got != "1.1" {
+			t.Errorf("%s: schema_version = %v, want \"1.1\"", name, got)
 		}
 	}
 

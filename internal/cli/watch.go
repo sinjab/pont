@@ -15,6 +15,7 @@ import (
 	"github.com/sinjab/pont/internal/store"
 	"github.com/sinjab/pont/internal/whatsapp"
 
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -40,8 +41,9 @@ var watchCmd = &cobra.Command{
 
 Designed to run as a long-lived companion process against its own --store
 directory (a separate linked device): one JSON object per line for message,
-connected, disconnected, keepalive_timeout, offline_sync_completed and
-terminal events. It never sends messages and never mutates any other store.
+message.ack (delivery/read/played receipts), connected, disconnected,
+keepalive_timeout, offline_sync_completed and terminal events. It never
+sends messages and never mutates any other store.
 
 Every event is journaled durably (watch_events table in the same store)
 BEFORE it is emitted, so a restarted consumer loses nothing:
@@ -55,9 +57,9 @@ Without --since-seq the output is byte-identical to the classic stream.
 Optional fan-out sinks (live events only, journal-first, never fatal to
 the watcher): --socket <path> broadcasts every live line to Unix-socket
 subscribers (they may connect and disconnect at any time); --on-message
-<cmd> runs a command (via sh -c) per message event with the JSON line
-on stdin. Dropped subscribers, failed or saturated hooks are warnings —
-the journal still holds everything.
+<cmd> runs a command (via sh -c) per message and message.ack event with
+the JSON line on stdin. Dropped subscribers, failed or saturated hooks
+are warnings — the journal still holds everything.
 
 Auto-reconnects on unclean disconnects. Terminal states exit non-zero:
 3 = logged out, 4 = temporary ban, 5 = client outdated, 6 = stream replaced.`,
@@ -69,23 +71,73 @@ func init() {
 	watchCmd.Flags().StringArrayVar(&watchJIDs, "jid", nil, "Only emit messages for these chat JIDs (repeatable; default: all)")
 	watchCmd.Flags().Int64Var(&watchSinceSeq, "since-seq", -1, "Replay journaled events after this seq, then continue live (adds \"seq\" to every line)")
 	watchCmd.Flags().StringVar(&watchSocket, "socket", "", "Unix socket path to broadcast every live event line to (subscribers may connect/disconnect freely)")
-	watchCmd.Flags().StringVar(&watchOnMessage, "on-message", "", "Command (run via sh -c) invoked per message event with the JSON line on stdin")
+	watchCmd.Flags().StringVar(&watchOnMessage, "on-message", "", "Command (run via sh -c) invoked per message and message.ack event with the JSON line on stdin")
 }
 
 // watchSchemaVersion stamps every LIVE-emitted event line (contract
-// normalization, Oct 11 2026 consult). Journaled lines replayed via
+// normalization, Oct 11 2026 consult; bumped to 1.1 with the
+// message.ack event kind, Oct 18 2026). Journaled lines replayed via
 // --since-seq are re-emitted verbatim from the journal, so events
-// journaled before this field existed carry no schema_version —
-// consumers must treat absence as legacy shape.
-const watchSchemaVersion = "1.0"
+// journaled before a given version existed carry their original stamp
+// (or none, pre-1.0) — consumers must treat absence as legacy shape.
+const watchSchemaVersion = "1.1"
 
 type watchEvent struct {
 	Event         string                       `json:"event"`
 	TS            time.Time                    `json:"ts"`
 	SchemaVersion string                       `json:"schema_version"`
 	Message       *whatsapp.MessageDescription `json:"message,omitempty"`
+	Ack           *watchAckEvent               `json:"ack,omitempty"`
 	Reason        string                       `json:"reason,omitempty"`
 	Count         int                          `json:"count,omitempty"`
+}
+
+// watchAckEvent is the payload of a message.ack event: whatsmeow's
+// events.Receipt (delivery/read/played confirmations, verified against
+// the pinned whatsmeow v0.0.0-20261007111105 — this version has no
+// events.MessageAck; receipts arrive solely as events.Receipt).
+type watchAckEvent struct {
+	ChatJID     string    `json:"chat_jid"`         // chat the receipted messages live in
+	Sender      string    `json:"sender,omitempty"` // who issued the receipt (group reads: the reader; empty in 1:1)
+	MessageIDs  []string  `json:"message_ids"`      // affected message IDs (order as sent by the server — Android and iOS differ)
+	ReceiptType string    `json:"receipt_type"`     // delivered | read | read-self | played | played-self | sender | retry | ...
+	Timestamp   time.Time `json:"timestamp"`        // source timestamp from WhatsApp (not emit time)
+	IsFromMe    bool      `json:"is_from_me"`       // the receipted messages were sent by this account (canonical field name, matches message events)
+}
+
+// receiptTypeName renders a whatsmeow receipt type for the wire. The
+// delivered type is the protocol's zero value (empty string) — surface
+// it explicitly so consumers never see receipt_type:"".
+func receiptTypeName(t types.ReceiptType) string {
+	if t == "" {
+		return "delivered"
+	}
+	return string(t)
+}
+
+// ackEventFromReceipt shapes a whatsmeow receipt into the journaled
+// message.ack watch event. Envelope TS stays wall-clock emit time like
+// every other event; the receipt's own timestamp rides in ack.timestamp
+// (falling back to emit time when the server sent none, so consumers
+// never parse year-1 zeroes).
+func ackEventFromReceipt(v *events.Receipt) watchEvent {
+	now := time.Now()
+	ts := v.Timestamp
+	if ts.IsZero() {
+		ts = now
+	}
+	return watchEvent{
+		Event: "message.ack",
+		TS:    now,
+		Ack: &watchAckEvent{
+			ChatJID:     v.Chat.String(),
+			Sender:      v.Sender.String(),
+			MessageIDs:  append([]string{}, v.MessageIDs...),
+			ReceiptType: receiptTypeName(v.Type),
+			Timestamp:   ts,
+			IsFromMe:    v.IsFromMe,
+		},
+	}
 }
 
 // journalDB and seqMode wire the durable event journal into the emit path.
@@ -141,13 +193,13 @@ func emitWatchEvent(ev watchEvent) {
 		os.Exit(1)
 	}
 	// Fan-out sinks (opt-in, never load-bearing): socket subscribers
-	// get every live line; the hook fires on message events only.
-	// Both are strictly AFTER journal + stdout — the durability and
-	// classic-stream contracts come first.
+	// get every live line; the hook fires on message and message.ack
+	// events. Both are strictly AFTER journal + stdout — the durability
+	// and classic-stream contracts come first.
 	if s := watchSock; s != nil {
 		s.broadcast(append(append([]byte{}, line...), '\n'))
 	}
-	if ev.Event == "message" && watchOnMessage != "" {
+	if (ev.Event == "message" || ev.Event == "message.ack") && watchOnMessage != "" {
 		fireMessageHook([]byte(watchOnMessage), append(append([]byte{}, line...), '\n'))
 	}
 }
@@ -232,6 +284,15 @@ func runWatch(cmd *cobra.Command, args []string) error {
 			}
 			desc := client.DescribeMessage(v)
 			emitWatchEvent(watchEvent{Event: "message", TS: time.Now(), Message: &desc})
+		case *events.Receipt:
+			// Delivery/read/played receipts for outgoing messages (and
+			// other-device reads of incoming ones). Same --jid filter as
+			// message events: an instance scoped to one chat sees only
+			// that chat's receipts.
+			if len(jidSet) > 0 && !jidSet[v.Chat.String()] {
+				return
+			}
+			emitWatchEvent(ackEventFromReceipt(v))
 		case *events.Connected:
 			emitWatchEvent(watchEvent{Event: "connected"})
 		case *events.Disconnected:

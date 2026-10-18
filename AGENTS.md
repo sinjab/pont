@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project Overview
 
-whatsapp-cli provides WhatsApp access from your terminal. Machine-readable output (JSON, JSONL, CSV, TSV, human tables).
+pont provides WhatsApp access from your terminal. Machine-readable output (JSON, JSONL, CSV, TSV, human tables).
 
 ## Development Commands
 
@@ -20,7 +20,7 @@ make can-release                    # Full CI (lint + test)
 ## Architecture
 
 ```
-cmd/whatsapp/main.go                # Entry point
+cmd/pont/main.go                   # Entry point (binary: dist/pont)
 
 internal/
 ├── cli/                            # Cobra commands, config, output, temporal parsing
@@ -28,7 +28,7 @@ internal/
 └── whatsapp/                       # WhatsApp client (connection, sync, messaging, media)
 ```
 
-Requires Go 1.25+, CGO enabled, SQLite with FTS5. FFmpeg optional for audio.
+Requires Go 1.26+, CGO enabled, SQLite with FTS5. FFmpeg optional for audio.
 
 ### Key Pattern
 
@@ -60,7 +60,15 @@ func runSend(cmd *cobra.Command, args []string) error {
 
 ### Testing
 
-Tests use `go test -tags sqlite_fts5`. Manual testing: `./dist/whatsapp doctor` and `./dist/whatsapp auth status`.
+Tests use `go test -tags sqlite_fts5`. Manual testing: `./dist/pont doctor` and `./dist/pont auth status`.
+
+Hard rules for agents: never touch the operator's live session/message store on
+this machine — tests must use temp dirs (`--data-dir`/`PONT_DATA_DIR` or
+`t.TempDir()`); merge whatsmeow version bumps only after the live smoke test
+passes (`scripts/smoke-test.sh` on the dedicated smoke device — green CI cannot
+see the WhatsApp network). The watch JSONL envelope is contract-frozen by
+`internal/cli/watch_envelope_test.go` goldens (regenerate deliberately with
+`go test -tags sqlite_fts5 ./internal/cli/ -update`).
 
 ### Data Units
 

@@ -12,8 +12,9 @@ package cli
 //	                  connected subscriber; subscribers may connect and
 //	                  disconnect at any time. Live events only — the
 //	                  journal replay path stays stdout-only.
-//	--on-message <c>  Hook invoked per MESSAGE event with the JSON line
-//	                  on stdin (run via sh -c, async, capped, 60s cap).
+//	--on-message <c>  Hook invoked per MESSAGE and MESSAGE.ACK event
+//	                  with the JSON line on stdin (run via sh -c,
+//	                  async, capped, 60s cap).
 import (
 	"bytes"
 	"context"
