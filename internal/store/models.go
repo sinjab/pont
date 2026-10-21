@@ -24,7 +24,12 @@ type Message struct {
 	IsFromMe   bool      `json:"is_from_me"`
 	MediaType  *string   `json:"media_type,omitempty"`
 	Filename   *string   `json:"filename,omitempty"`
-	ChatName   *string   `json:"chat_name,omitempty"`
+	// Quoted-reply target (protocol ContextInfo.StanzaId) plus a text
+	// snapshot of the quoted message, when this message is a reply.
+	// Legacy rows keep NULL (migration v4; new records only).
+	ReplyToID   *string `json:"reply_to_id,omitempty"`
+	ReplyToText *string `json:"reply_to_text,omitempty"`
+	ChatName    *string `json:"chat_name,omitempty"`
 }
 
 // Contact represents a WhatsApp contact.

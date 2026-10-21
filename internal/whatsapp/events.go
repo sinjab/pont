@@ -22,6 +22,10 @@ type MessageDescription struct {
 	Timestamp time.Time `json:"timestamp"`
 	MediaType string    `json:"media_type,omitempty"`
 	Content   string    `json:"content,omitempty"`
+	// Quoted-reply target + snapshot, when the message is a reply
+	// (mirror of the store fields; migration v4).
+	ReplyToID   string `json:"reply_to_id,omitempty"`
+	ReplyToText string `json:"reply_to_text,omitempty"`
 	// DeviceSent is true when this is a copy of a message sent from
 	// another one of the user's own linked devices (phone, desktop,
 	// another CLI instance). On a dedicated watcher device these
@@ -47,16 +51,19 @@ func (d MessageDescription) MarshalJSON() ([]byte, error) {
 func (c *Client) DescribeMessage(msg *events.Message) MessageDescription {
 	content := extractTextContent(msg.Message)
 	mediaType, _, _, _, _, _, _ := extractMediaInfo(msg.Message)
+	replyToID, replyToText := extractReplyInfo(msg.Message)
 
 	d := MessageDescription{
-		ID:        string(msg.Info.ID),
-		ChatJID:   msg.Info.Chat.String(),
-		Sender:    msg.Info.Sender.String(),
-		PushName:  msg.Info.PushName,
-		IsFromMe:  msg.Info.IsFromMe,
-		Timestamp: msg.Info.Timestamp,
-		MediaType: mediaType,
-		Content:   content,
+		ID:          string(msg.Info.ID),
+		ChatJID:     msg.Info.Chat.String(),
+		Sender:      msg.Info.Sender.String(),
+		PushName:    msg.Info.PushName,
+		IsFromMe:    msg.Info.IsFromMe,
+		Timestamp:   msg.Info.Timestamp,
+		MediaType:   mediaType,
+		Content:     content,
+		ReplyToID:   replyToID,
+		ReplyToText: replyToText,
 	}
 
 	if !msg.Info.SenderAlt.IsEmpty() {

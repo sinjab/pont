@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Quoted-reply capture (store + descriptions).** Incoming replies
+  now persist their quoted target: `reply_to_id` (protocol
+  `ContextInfo.StanzaID`) plus `reply_to_text` — a 480-rune text
+  snapshot of the quoted message — in `messages` (migration v4, new
+  records only; legacy rows stay NULL per the never-guess rule). The
+  fields surface in `messages`/`search`/`export` JSON
+  (`reply_to_id`, `reply_to_text`, omitted when absent) and in watch
+  `MessageDescription` events. Replies ride any wrapper (extended
+  text, images, documents, voice notes, stickers, locations,
+  contacts, polls), all walked. Previously a stored reply was
+  indistinguishable from a standalone message — the quoted context
+  (phone-sent originals, cross-chat quotes, pre-adoption rows) was
+  unrecoverable from the store (proven 2026-10-21: a partner's
+  «ارسلت له هذا الرد بعد مراجعتك» quoted-reply could not be
+  resolved to its target).
+
 ### Fixed
 
 - **Text forwards carry the "Forwarded" label.** `forward` of a text

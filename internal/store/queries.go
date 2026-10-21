@@ -86,7 +86,8 @@ func (d *DB) OldestMessageForChat(chatJID string) (Message, error) {
 		SELECT m.id, m.chat_jid, m.sender,
 		       COALESCE(m.sender_name, l.name) as sender_name,
 		       m.content, m.timestamp, m.is_from_me,
-		       m.media_type, m.filename, c.name as chat_name
+		       m.media_type, m.filename, c.name as chat_name,
+		       m.reply_to_id, m.reply_to_text
 		FROM messages m
 		LEFT JOIN chats c ON m.chat_jid = c.jid
 		LEFT JOIN lid_mappings l ON m.sender = l.lid
@@ -112,7 +113,8 @@ func (d *DB) ListMessages(opts ListMessagesOptions) ([]Message, error) {
 		SELECT m.id, m.chat_jid, m.sender,
 		       COALESCE(m.sender_name, l.name) as sender_name,
 		       m.content, m.timestamp, m.is_from_me,
-		       m.media_type, m.filename, c.name as chat_name
+		       m.media_type, m.filename, c.name as chat_name,
+		       m.reply_to_id, m.reply_to_text
 		FROM messages m
 		LEFT JOIN chats c ON m.chat_jid = c.jid
 		LEFT JOIN lid_mappings l ON m.sender = l.lid
@@ -166,7 +168,8 @@ func (d *DB) SearchMessages(opts SearchMessagesOptions) ([]Message, error) {
 		SELECT m.id, m.chat_jid, m.sender,
 		       COALESCE(m.sender_name, l.name) as sender_name,
 		       m.content, m.timestamp, m.is_from_me,
-		       m.media_type, m.filename, c.name as chat_name
+		       m.media_type, m.filename, c.name as chat_name,
+		       m.reply_to_id, m.reply_to_text
 		FROM messages m
 		JOIN messages_fts fts ON m.rowid = fts.rowid
 		LEFT JOIN chats c ON m.chat_jid = c.jid
@@ -241,9 +244,9 @@ func (d *DB) scanMessages(query string, args []any) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		var senderName, content, mediaType, filename, chatName sql.NullString
+		var senderName, content, mediaType, filename, chatName, replyToID, replyToText sql.NullString
 
-		if err := rows.Scan(&m.ID, &m.ChatJID, &m.Sender, &senderName, &content, &m.Timestamp, &m.IsFromMe, &mediaType, &filename, &chatName); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChatJID, &m.Sender, &senderName, &content, &m.Timestamp, &m.IsFromMe, &mediaType, &filename, &chatName, &replyToID, &replyToText); err != nil {
 			continue
 		}
 
@@ -261,6 +264,12 @@ func (d *DB) scanMessages(query string, args []any) ([]Message, error) {
 		}
 		if chatName.Valid {
 			m.ChatName = &chatName.String
+		}
+		if replyToID.Valid && replyToID.String != "" {
+			m.ReplyToID = &replyToID.String
+		}
+		if replyToText.Valid && replyToText.String != "" {
+			m.ReplyToText = &replyToText.String
 		}
 
 		messages = append(messages, m)

@@ -75,6 +75,26 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 4,
+		name:    "quoted-reply columns (reply_to_id + reply_to_text snapshot; new records only, legacy rows NULL)",
+		fn: func(db execer) error {
+			// A quoted reply carries its target in the protocol's
+			// ContextInfo; persisting reply_to_id (+ a text snapshot of
+			// the quoted message) makes every stored reply self-describing
+			// even when the quoted original was phone-sent, lives in
+			// another chat, or predates the store. New records only -
+			// legacy rows stay NULL (same never-guess rule as sender_jid).
+			for _, col := range []string{`reply_to_id TEXT`, `reply_to_text TEXT`} {
+				if _, err := db.Exec(`ALTER TABLE messages ADD COLUMN ` + col); err != nil {
+					if !strings.Contains(err.Error(), "duplicate column name") {
+						return fmt.Errorf("add %s: %w", col, err)
+					}
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // migrateDB applies pending migrations, each in its own transaction with

@@ -65,6 +65,58 @@ func extractTextContent(m *waE2E.Message) string {
 	return ""
 }
 
+// extractReplyInfo extracts the quoted-reply target from a WhatsApp
+// message: the quoted message's id (ContextInfo.StanzaId) and a text
+// snapshot of the quoted content. Replies can ride any concrete
+// wrapper (extended text, images, documents, voice notes...), so walk
+// the same type set as the text/media extractors. The snapshot keeps
+// replies self-describing even when the quoted original is absent
+// from the store (phone-sent, another chat, pre-adoption). Empty
+// returns mean "not a reply".
+func extractReplyInfo(m *waE2E.Message) (replyToID, replyToText string) {
+	if m == nil {
+		return "", ""
+	}
+
+	var ctx *waE2E.ContextInfo
+	switch {
+	case m.GetExtendedTextMessage() != nil:
+		ctx = m.GetExtendedTextMessage().GetContextInfo()
+	case m.GetImageMessage() != nil:
+		ctx = m.GetImageMessage().GetContextInfo()
+	case m.GetVideoMessage() != nil:
+		ctx = m.GetVideoMessage().GetContextInfo()
+	case m.GetAudioMessage() != nil:
+		ctx = m.GetAudioMessage().GetContextInfo()
+	case m.GetDocumentMessage() != nil:
+		ctx = m.GetDocumentMessage().GetContextInfo()
+	case m.GetStickerMessage() != nil:
+		ctx = m.GetStickerMessage().GetContextInfo()
+	case m.GetLocationMessage() != nil:
+		ctx = m.GetLocationMessage().GetContextInfo()
+	case m.GetContactMessage() != nil:
+		ctx = m.GetContactMessage().GetContextInfo()
+	case m.GetLiveLocationMessage() != nil:
+		ctx = m.GetLiveLocationMessage().GetContextInfo()
+	case m.GetPollCreationMessage() != nil:
+		ctx = m.GetPollCreationMessage().GetContextInfo()
+	}
+	if ctx == nil {
+		return "", ""
+	}
+
+	replyToID = ctx.GetStanzaID()
+	if qm := ctx.GetQuotedMessage(); qm != nil {
+		replyToText = extractTextContent(qm)
+		// Cap the snapshot at a sane preview length (WhatsApp itself
+		// previews ~one screen); rune-safe truncation.
+		if r := []rune(replyToText); len(r) > 480 {
+			replyToText = string(r[:480]) + "…"
+		}
+	}
+	return replyToID, replyToText
+}
+
 // extractMediaInfo extracts media information from a WhatsApp message.
 func extractMediaInfo(m *waE2E.Message) (mediaType, filename, url string, mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) {
 	if m == nil {
