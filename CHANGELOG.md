@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Text forwards carry the "Forwarded" label.** `forward` of a text
+  message now sends an `ExtendedTextMessage` with `ContextInfo`
+  (`IsForwarded`, `ForwardingScore: 1`) instead of a bare
+  `Conversation` — matching the media-forward path (2.4.2). Previously
+  text forwards arrived indistinguishable from original messages
+  (proven 2026-10-21 relaying check-ins to a family chat).
+
 - **Failed sends exit non-zero.** `send` (text and media), `forward`,
   `react`, and `delete` reject missing receipts, unsuccessful results,
   and empty message IDs before printing success. Audio caption follow-up

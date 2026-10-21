@@ -380,8 +380,19 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 		}, nil
 	}
 
+	// Text forward: ExtendedTextMessage (not bare Conversation) so the
+	// bubble can carry ContextInfo — the WhatsApp "Forwarded" label,
+	// same as the media path above. Bare Conversation sends render
+	// label-less (proven 2026-10-21: text forwards arrived looking
+	// like original messages).
 	msg := &waE2E.Message{
-		Conversation: protoString(content),
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: protoString(content),
+			ContextInfo: &waE2E.ContextInfo{
+				IsForwarded:     protoBool(true),
+				ForwardingScore: protoUint32(1),
+			},
+		},
 	}
 
 	resp, err := c.sendMessageIdempotent(context.Background(), toJID, msg)
