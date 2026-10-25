@@ -271,23 +271,33 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 	}
 
 	// Query original message content + media metadata.
-	var content, mediaType, filename, url string
+	var content, mediaType, filename, url, directPath string
 	var mediaKey, fileSHA256, fileEncSHA256 []byte
 	var fileLength uint64
+	var mediaKeyTimestamp int64
 	row := c.Store.Messages.QueryRow(`
 		SELECT content, COALESCE(media_type, ''), COALESCE(filename, ''), COALESCE(url, ''),
+		       COALESCE(direct_path, ''), COALESCE(media_key_timestamp, 0),
 		       media_key, file_sha256, file_enc_sha256, file_length
 		FROM messages WHERE id = ? AND chat_jid = ?
 	`, messageID, fromChatJID)
-	if err := row.Scan(&content, &mediaType, &filename, &url, &mediaKey, &fileSHA256, &fileEncSHA256, &fileLength); err != nil {
+	if err := row.Scan(&content, &mediaType, &filename, &url, &directPath, &mediaKeyTimestamp, &mediaKey, &fileSHA256, &fileEncSHA256, &fileLength); err != nil {
 		return &SendMessageResult{Success: false, Message: "message not found"}, err
 	}
 
-	// Media forward (v2.4.2): reference-forward the ORIGINAL media — the
-	// stored url/direct-path, media key and hashes are re-sent as-is, the
-	// way official clients forward (no re-download, no re-upload; instant
-	// even for large media). The bubble carries the WhatsApp "Forwarded"
-	// label via ContextInfo. Media captions live in `content`.
+	// Media forward (v2.4.3): reference-forward the ORIGINAL media — the
+	// stored url, TRUE direct-path (migration v5), media key and hashes
+	// are re-sent as-is, the way official clients forward (no
+	// re-download, no re-upload; instant even for large media). The
+	// bubble carries the WhatsApp "Forwarded" label via ContextInfo.
+	// Media captions live in `content`.
+	//
+	// NEVER synthesize a direct-path from the URL (v2.4.2 law, proven
+	// Oct 25 2026): stripping the URL's ?oh= auth token produces an
+	// invalid reference that directPath-first clients (Android) cannot
+	// download — permanent "Couldn't download / ask that it be resent".
+	// Rows captured before v5 have no stored direct-path and forward
+	// URL-ONLY (DirectPath empty; clients fetch via the signed URL).
 	if mediaType != "" {
 		if mediaType == "sticker" {
 			return &SendMessageResult{Success: false, Message: "sticker forwarding not supported"}, fmt.Errorf("sticker forwarding not supported")
@@ -297,7 +307,14 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 		}
 
 		_, mime := classify(filename)
-		directPath := extractDirectPathFromURL(url)
+		var fwdDirectPath *string // nil = URL-only forward (pre-v5 rows)
+		if directPath != "" {
+			fwdDirectPath = protoString(directPath)
+		}
+		var fwdKeyTS *int64
+		if mediaKeyTimestamp != 0 {
+			fwdKeyTS = protoInt64(mediaKeyTimestamp)
+		}
 		fwdCtx := &waE2E.ContextInfo{
 			IsForwarded:     protoBool(true),
 			ForwardingScore: protoUint32(1),
@@ -307,27 +324,29 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 		switch classifyToWA(mediaType) {
 		case whatsmeow.MediaImage:
 			m.ImageMessage = &waE2E.ImageMessage{
-				Caption:       protoString(content),
-				Mimetype:      protoString(mime),
-				URL:           protoString(url),
-				DirectPath:    protoString(directPath),
-				MediaKey:      mediaKey,
-				FileEncSHA256: fileEncSHA256,
-				FileSHA256:    fileSHA256,
-				FileLength:    &fileLength,
-				ContextInfo:   fwdCtx,
+				Caption:           protoString(content),
+				Mimetype:          protoString(mime),
+				URL:               protoString(url),
+				DirectPath:        fwdDirectPath,
+				MediaKey:          mediaKey,
+				MediaKeyTimestamp: fwdKeyTS,
+				FileEncSHA256:     fileEncSHA256,
+				FileSHA256:        fileSHA256,
+				FileLength:        &fileLength,
+				ContextInfo:       fwdCtx,
 			}
 		case whatsmeow.MediaVideo:
 			m.VideoMessage = &waE2E.VideoMessage{
-				Caption:       protoString(content),
-				Mimetype:      protoString(mime),
-				URL:           protoString(url),
-				DirectPath:    protoString(directPath),
-				MediaKey:      mediaKey,
-				FileEncSHA256: fileEncSHA256,
-				FileSHA256:    fileSHA256,
-				FileLength:    &fileLength,
-				ContextInfo:   fwdCtx,
+				Caption:           protoString(content),
+				Mimetype:          protoString(mime),
+				URL:               protoString(url),
+				DirectPath:        fwdDirectPath,
+				MediaKey:          mediaKey,
+				MediaKeyTimestamp: fwdKeyTS,
+				FileEncSHA256:     fileEncSHA256,
+				FileSHA256:        fileSHA256,
+				FileLength:        &fileLength,
+				ContextInfo:       fwdCtx,
 			}
 		case whatsmeow.MediaDocument:
 			title := filename
@@ -335,32 +354,34 @@ func (c *Client) ForwardMessage(recipient, messageID, fromChatJID string) (*Send
 				title = "Document"
 			}
 			m.DocumentMessage = &waE2E.DocumentMessage{
-				Title:         protoString(title),
-				FileName:      protoString(title),
-				Caption:       protoString(content),
-				Mimetype:      protoString(mime),
-				URL:           protoString(url),
-				DirectPath:    protoString(directPath),
-				MediaKey:      mediaKey,
-				FileEncSHA256: fileEncSHA256,
-				FileSHA256:    fileSHA256,
-				FileLength:    &fileLength,
-				ContextInfo:   fwdCtx,
+				Title:             protoString(title),
+				FileName:          protoString(title),
+				Caption:           protoString(content),
+				Mimetype:          protoString(mime),
+				URL:               protoString(url),
+				DirectPath:        fwdDirectPath,
+				MediaKey:          mediaKey,
+				MediaKeyTimestamp: fwdKeyTS,
+				FileEncSHA256:     fileEncSHA256,
+				FileSHA256:        fileSHA256,
+				FileLength:        &fileLength,
+				ContextInfo:       fwdCtx,
 			}
 		case whatsmeow.MediaAudio:
 			// Voice notes are Opus-in-OGG on WhatsApp; seconds/waveform are
 			// not persisted in the store, so the forwarded bubble plays fine
 			// without a duration chip.
 			m.AudioMessage = &waE2E.AudioMessage{
-				Mimetype:      protoString("audio/ogg; codecs=opus"),
-				URL:           protoString(url),
-				DirectPath:    protoString(directPath),
-				MediaKey:      mediaKey,
-				FileEncSHA256: fileEncSHA256,
-				FileSHA256:    fileSHA256,
-				FileLength:    &fileLength,
-				PTT:           protoBool(true),
-				ContextInfo:   fwdCtx,
+				Mimetype:          protoString("audio/ogg; codecs=opus"),
+				URL:               protoString(url),
+				DirectPath:        fwdDirectPath,
+				MediaKey:          mediaKey,
+				MediaKeyTimestamp: fwdKeyTS,
+				FileEncSHA256:     fileEncSHA256,
+				FileSHA256:        fileSHA256,
+				FileLength:        &fileLength,
+				PTT:               protoBool(true),
+				ContextInfo:       fwdCtx,
 			}
 		default:
 			return &SendMessageResult{Success: false, Message: "unsupported media type"}, fmt.Errorf("unsupported media type %q", mediaType)
@@ -692,6 +713,9 @@ func protoBool(b bool) *bool { return &b }
 
 // protoUint32 returns a pointer to a uint32 (for protobuf).
 func protoUint32(u uint32) *uint32 { return &u }
+
+// protoInt64 returns a pointer to an int64 (for protobuf — media_key_timestamp).
+func protoInt64(i int64) *int64 { return &i }
 
 // parseRecipient parses a recipient string (phone or JID) into a types.JID.
 func parseRecipient(recipient string) (types.JID, error) {

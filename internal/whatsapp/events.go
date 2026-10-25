@@ -50,7 +50,7 @@ func (d MessageDescription) MarshalJSON() ([]byte, error) {
 // DescribeMessage summarizes a live events.Message without persisting anything.
 func (c *Client) DescribeMessage(msg *events.Message) MessageDescription {
 	content := extractTextContent(msg.Message)
-	mediaType, _, _, _, _, _, _ := extractMediaInfo(msg.Message)
+	mediaType, _, _, _, _, _, _, _, _ := extractMediaInfo(msg.Message)
 	replyToID, replyToText := extractReplyInfo(msg.Message)
 
 	d := MessageDescription{

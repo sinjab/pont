@@ -118,21 +118,26 @@ func extractReplyInfo(m *waE2E.Message) (replyToID, replyToText string) {
 }
 
 // extractMediaInfo extracts media information from a WhatsApp message.
-func extractMediaInfo(m *waE2E.Message) (mediaType, filename, url string, mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) {
+// directPath + mediaKeyTimestamp are the protocol's OWN media reference
+// fields (migration v5): forwarding must re-send the TRUE directPath —
+// synthesizing one from the URL strips its ?oh= auth token and produces
+// an invalid reference that directPath-first clients (Android) cannot
+// download (proven Oct 25 2026).
+func extractMediaInfo(m *waE2E.Message) (mediaType, filename, url, directPath string, mediaKeyTimestamp int64, mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) {
 	if m == nil {
-		return "", "", "", nil, nil, nil, 0
+		return "", "", "", "", 0, nil, nil, nil, 0
 	}
 
 	if img := m.GetImageMessage(); img != nil {
-		return "image", fmt.Sprintf("image_%s.jpg", time.Now().Format("20060102_150405")), img.GetURL(), img.GetMediaKey(), img.GetFileSHA256(), img.GetFileEncSHA256(), img.GetFileLength()
+		return "image", fmt.Sprintf("image_%s.jpg", time.Now().Format("20060102_150405")), img.GetURL(), img.GetDirectPath(), img.GetMediaKeyTimestamp(), img.GetMediaKey(), img.GetFileSHA256(), img.GetFileEncSHA256(), img.GetFileLength()
 	}
 
 	if vid := m.GetVideoMessage(); vid != nil {
-		return "video", fmt.Sprintf("video_%s.mp4", time.Now().Format("20060102_150405")), vid.GetURL(), vid.GetMediaKey(), vid.GetFileSHA256(), vid.GetFileEncSHA256(), vid.GetFileLength()
+		return "video", fmt.Sprintf("video_%s.mp4", time.Now().Format("20060102_150405")), vid.GetURL(), vid.GetDirectPath(), vid.GetMediaKeyTimestamp(), vid.GetMediaKey(), vid.GetFileSHA256(), vid.GetFileEncSHA256(), vid.GetFileLength()
 	}
 
 	if aud := m.GetAudioMessage(); aud != nil {
-		return "audio", fmt.Sprintf("audio_%s.ogg", time.Now().Format("20060102_150405")), aud.GetURL(), aud.GetMediaKey(), aud.GetFileSHA256(), aud.GetFileEncSHA256(), aud.GetFileLength()
+		return "audio", fmt.Sprintf("audio_%s.ogg", time.Now().Format("20060102_150405")), aud.GetURL(), aud.GetDirectPath(), aud.GetMediaKeyTimestamp(), aud.GetMediaKey(), aud.GetFileSHA256(), aud.GetFileEncSHA256(), aud.GetFileLength()
 	}
 
 	if doc := m.GetDocumentMessage(); doc != nil {
@@ -140,14 +145,14 @@ func extractMediaInfo(m *waE2E.Message) (mediaType, filename, url string, mediaK
 		if name == "" {
 			name = fmt.Sprintf("document_%s", time.Now().Format("20060102_150405"))
 		}
-		return "document", name, doc.GetURL(), doc.GetMediaKey(), doc.GetFileSHA256(), doc.GetFileEncSHA256(), doc.GetFileLength()
+		return "document", name, doc.GetURL(), doc.GetDirectPath(), doc.GetMediaKeyTimestamp(), doc.GetMediaKey(), doc.GetFileSHA256(), doc.GetFileEncSHA256(), doc.GetFileLength()
 	}
 
 	if sticker := m.GetStickerMessage(); sticker != nil {
-		return "sticker", fmt.Sprintf("sticker_%s.webp", time.Now().Format("20060102_150405")), sticker.GetURL(), sticker.GetMediaKey(), sticker.GetFileSHA256(), sticker.GetFileEncSHA256(), sticker.GetFileLength()
+		return "sticker", fmt.Sprintf("sticker_%s.webp", time.Now().Format("20060102_150405")), sticker.GetURL(), sticker.GetDirectPath(), sticker.GetMediaKeyTimestamp(), sticker.GetMediaKey(), sticker.GetFileSHA256(), sticker.GetFileEncSHA256(), sticker.GetFileLength()
 	}
 
-	return "", "", "", nil, nil, nil, 0
+	return "", "", "", "", 0, nil, nil, nil, 0
 }
 
 // classifyToWA converts media type string to WhatsApp MediaType.

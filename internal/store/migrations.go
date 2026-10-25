@@ -95,6 +95,29 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 5,
+		name:    "true media reference columns (direct_path + media_key_timestamp; new records only, legacy rows NULL)",
+		fn: func(db execer) error {
+			// Forwarding media re-sends the row's media reference.
+			// direct_path is the protocol's OWN signed reference from the
+			// uploader; without it, forwards had to SYNTHESIZE a path by
+			// stripping the URL's ?oh= auth token — an invalid reference
+			// that directPath-first clients (Android) fail to download
+			// permanently ("Couldn't download / ask that it be resent",
+			// proven Oct 25 2026). media_key_timestamp rides the same
+			// capture. New records only — legacy rows stay NULL and
+			// forward URL-only (DirectPath empty, never synthesized).
+			for _, col := range []string{`direct_path TEXT`, `media_key_timestamp INTEGER`} {
+				if _, err := db.Exec(`ALTER TABLE messages ADD COLUMN ` + col); err != nil {
+					if !strings.Contains(err.Error(), "duplicate column name") {
+						return fmt.Errorf("add %s: %w", col, err)
+					}
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // migrateDB applies pending migrations, each in its own transaction with
