@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.5.0] - 2026-10-25
 
 ### Added
 
@@ -40,6 +40,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failures now propagate an error, including the already-sent media ID.
   Command failures exit 1 with errors on stderr; argument/flag validation
   errors exit 2; successful actions exit 0.
+
+- **Media forwards re-send the TRUE direct-path (undownloadable-forward
+  fix).** Forwarding media now re-sends the protocol's OWN
+  `direct_path` + `media_key_timestamp`, persisted at capture
+  (migration v5, new records only; legacy rows stay NULL per the
+  never-guess rule). Previously the direct-path was SYNTHESIZED from
+  the URL by stripping its `?oh=` auth token — an invalid reference
+  embedded beside a valid URL: URL-first clients fetched fine, but
+  directPath-first clients (Android) hit the dead path, their
+  mediaRetryRequest went to a disconnected CLI, and the bubble died
+  with "Couldn't download. Please ask that it be resent" (proven
+  2026-10-25: two forwards of a live VN unfetchable on an Android
+  contact while the blob itself served 200). Rows captured before v5
+  forward URL-only (`DirectPath` empty) — never a synthesized path.
+  `extractDirectPathFromURL` remains for the download fallback lane.
 
 ### Added
 
