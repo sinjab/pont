@@ -15,6 +15,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/andybalholm/brotli v1.2.4 // indirect
+	github.com/apache/thrift v0.24.0 // indirect
 	github.com/armfazh/h2c-go-ref v0.0.0-20210215173008-07e12a6f8e0d // indirect
 	github.com/armfazh/tozan-ecc v0.1.3 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
@@ -25,6 +26,7 @@ require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
+	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gtank/ristretto255 v0.2.0 // indirect

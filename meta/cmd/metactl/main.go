@@ -20,6 +20,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-meta/pkg/messagix"
+	"go.mau.fi/mautrix-meta/pkg/instameow"
 	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
 	"go.mau.fi/mautrix-meta/pkg/messagix/socket"
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
@@ -27,8 +28,9 @@ import (
 )
 
 const usage = `usage:
-  metactl threads   <cookies.json> [collect-sec, default 20]
-  metactl messages  <cookies.json> <thread_key> [collect-sec, default 12]`
+  metactl threads    <cookies.json> [collect-sec, default 20]
+  metactl messages   <cookies.json> <thread_key> [collect-sec, default 12]
+  metactl ig-threads <ig-cookies.json>`
 
 func main() {
 	if len(os.Args) < 3 {
@@ -53,6 +55,9 @@ func main() {
 		if len(os.Args) > 4 {
 			collect = parseDur(os.Args[4])
 		}
+	case "ig-threads":
+		igThreads(cookiePath)
+		return
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
@@ -211,6 +216,89 @@ func main() {
 		}
 		stamp := time.UnixMilli(m.TimestampMs).Format("2006-01-02 15:04")
 		fmt.Printf("%s\t%s\t%s\n", stamp, sender, m.Text)
+	}
+}
+
+func igThreads(cookiePath string) {
+	log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).With().Timestamp().Logger()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
+	ck := loadCookies(log, cookiePath)
+	ck.Platform = types.Instagram
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// DisableTyping: skip the mqttbypass/streamcontroller side sockets
+	// (consult r1 Q9) — one-shot inbox read only.
+	client := instameow.NewClient(instameow.ClientParams{
+		Cookies:       ck,
+		Log:           log,
+		DisableTyping: true,
+	})
+
+	viewer, mailbox, err := client.LoadIndex(ctx)
+	if err != nil {
+		log.Fatal().Msgf("LoadIndex: %v", err)
+	}
+	if viewer != nil {
+		log.Info().Str("user_id", viewer.GetUserId()).Msg("logged in")
+	}
+
+	if raw, err := json.Marshal(client.GetCookies()); err == nil {
+		_ = os.WriteFile(cookiePath, raw, 0o600)
+	}
+
+	type row struct {
+		ts    int64
+		line  string
+	}
+	var rows []row
+	seen := map[string]bool{}
+	for _, edge := range mailbox.ThreadsByFolder.Edges {
+		ti := edge.Node.AsIGDirectThread
+		if ti == nil || seen[ti.ThreadID] {
+			continue
+		}
+		seen[ti.ThreadID] = true
+		name := ti.ThreadTitle
+		if name == "" && len(ti.Users) > 0 {
+			for _, u := range ti.Users {
+				n := u.FullName
+				if n == "" {
+					n = u.Username
+				}
+				if name == "" {
+					name = n
+				} else {
+					name += ", " + n
+				}
+			}
+		}
+		kind := "1:1"
+		if ti.IsGroup {
+			kind = "group"
+		}
+		snippet := ""
+		if ti.SlideMessages != nil && len(ti.SlideMessages.Edges) > 0 {
+			last := ti.SlideMessages.Edges[len(ti.SlideMessages.Edges)-1].Node
+			if last != nil {
+				snippet = trim(last.TextBody, 50)
+				if snippet == "" {
+					snippet = trim(last.IGDSnippet, 50)
+				}
+			}
+		}
+		ts := ti.LastActivityTimestampMS.UnixMilli()
+		rows = append(rows, row{ts, fmt.Sprintf("%s\t%s\t%s\t%d\t%s\t%s",
+			ti.ThreadID, ti.Folder, kind, ti.ThreadKey,
+			time.UnixMilli(ts).Format("2006-01-02 15:04"), name+"\t"+snippet)})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].ts > rows[j].ts })
+	fmt.Fprintf(os.Stderr, "\n=== %d IG threads ===\n", len(rows))
+	fmt.Println("thread_id\tfolder\tkind\tthread_key\tlast_activity\tname\tsnippet")
+	for _, r := range rows {
+		fmt.Println(r.line)
 	}
 }
 
