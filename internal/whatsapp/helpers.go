@@ -117,6 +117,20 @@ func extractReplyInfo(m *waE2E.Message) (replyToID, replyToText string) {
 	return replyToID, replyToText
 }
 
+// extractContactVCard extracts the raw vCard payload of a shared
+// contact card. extractTextContent renders only the "👤 display name"
+// line; the card's phone numbers ride this body (store column vcard,
+// migration v6) so a shared number is reachable without the phone UI.
+func extractContactVCard(m *waE2E.Message) string {
+	if m == nil {
+		return ""
+	}
+	if contact := m.GetContactMessage(); contact != nil {
+		return contact.GetVcard()
+	}
+	return ""
+}
+
 // extractMediaInfo extracts media information from a WhatsApp message.
 // directPath + mediaKeyTimestamp are the protocol's OWN media reference
 // fields (migration v5): forwarding must re-send the TRUE directPath —

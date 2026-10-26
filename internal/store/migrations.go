@@ -118,6 +118,26 @@ var migrations = []migration{
 			return nil
 		},
 	},
+	{
+		version: 6,
+		name:    "vcard column (raw contact-card payload; new records only, legacy rows NULL)",
+		fn: func(db execer) error {
+			// Contact cards arrived as content "👤 <display name>" only —
+			// the raw vCard body (with the shared phone numbers) was
+			// dropped at ingest, so a card's number was unreachable from
+			// the store (proven Oct 26 2026: Haytham's writer card had to
+			// be read off the phone). vcard persists the protocol's own
+			// vCard payload verbatim; the display line stays in content.
+			// New records only — legacy rows keep NULL and heal on
+			// re-ingest (backfill) through the upsert's non-empty-guard.
+			if _, err := db.Exec(`ALTER TABLE messages ADD COLUMN vcard TEXT`); err != nil {
+				if !strings.Contains(err.Error(), "duplicate column name") {
+					return fmt.Errorf("add vcard: %w", err)
+				}
+			}
+			return nil
+		},
+	},
 }
 
 // migrateDB applies pending migrations, each in its own transaction with

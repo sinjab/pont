@@ -24,6 +24,10 @@ type Message struct {
 	IsFromMe   bool      `json:"is_from_me"`
 	MediaType  *string   `json:"media_type,omitempty"`
 	Filename   *string   `json:"filename,omitempty"`
+	// Raw vCard payload of a shared contact card, verbatim from the
+	// protocol (display name stays in Content as "👤 name"; the phone
+	// numbers live here). Legacy rows keep NULL (migration v6).
+	VCard *string `json:"vcard,omitempty"`
 	// Quoted-reply target (protocol ContextInfo.StanzaId) plus a text
 	// snapshot of the quoted message, when this message is a reply.
 	// Legacy rows keep NULL (migration v4; new records only).

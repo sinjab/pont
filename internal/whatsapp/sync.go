@@ -18,6 +18,7 @@ func (c *Client) handleMessage(msg *events.Message) {
 	content := extractTextContent(msg.Message)
 	mediaType, filename, url, directPath, mediaKeyTimestamp, mediaKey, fileSHA256, fileEncSHA256, fileLength := extractMediaInfo(msg.Message) // + true media reference (migration v5)
 	replyToID, replyToText := extractReplyInfo(msg.Message)                                                                                   // quoted-reply target (migration v4)
+	vcard := extractContactVCard(msg.Message)                                                                                                 // raw contact-card payload (migration v6)
 
 	if content == "" && mediaType == "" {
 		return
@@ -51,8 +52,8 @@ func (c *Client) handleMessage(msg *events.Message) {
 	}
 
 	if _, err := c.Store.Messages.Exec(`INSERT INTO messages
-		(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, direct_path, media_key_timestamp, media_key, file_sha256, file_enc_sha256, file_length, reply_to_id, reply_to_text)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, direct_path, media_key_timestamp, media_key, file_sha256, file_enc_sha256, file_length, reply_to_id, reply_to_text, vcard)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id, chat_jid) DO UPDATE SET
 			sender = excluded.sender,
 			sender_jid = CASE WHEN excluded.sender_jid != '' THEN excluded.sender_jid ELSE messages.sender_jid END,
@@ -70,8 +71,9 @@ func (c *Client) handleMessage(msg *events.Message) {
 			file_enc_sha256 = CASE WHEN excluded.file_enc_sha256 IS NOT NULL THEN excluded.file_enc_sha256 ELSE messages.file_enc_sha256 END,
 			file_length = CASE WHEN excluded.file_length != 0 THEN excluded.file_length ELSE messages.file_length END,
 			reply_to_id = CASE WHEN excluded.reply_to_id != '' THEN excluded.reply_to_id ELSE messages.reply_to_id END,
-			reply_to_text = CASE WHEN excluded.reply_to_text != '' THEN excluded.reply_to_text ELSE messages.reply_to_text END`,
-		msg.Info.ID, chatJID, sender, senderJID, senderName, content, msg.Info.Timestamp, msg.Info.IsFromMe, mediaType, filename, url, directPath, mediaKeyTimestamp, mediaKey, fileSHA256, fileEncSHA256, fileLength, replyToID, replyToText,
+			reply_to_text = CASE WHEN excluded.reply_to_text != '' THEN excluded.reply_to_text ELSE messages.reply_to_text END,
+			vcard = CASE WHEN excluded.vcard != '' THEN excluded.vcard ELSE messages.vcard END`,
+		msg.Info.ID, chatJID, sender, senderJID, senderName, content, msg.Info.Timestamp, msg.Info.IsFromMe, mediaType, filename, url, directPath, mediaKeyTimestamp, mediaKey, fileSHA256, fileEncSHA256, fileLength, replyToID, replyToText, vcard,
 	); err != nil {
 		c.Logger.Warn("failed to store message", "id", msg.Info.ID, "chat_jid", chatJID, "err", err)
 	}
@@ -139,6 +141,11 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 			rID, rText := "", "" // quoted-reply target (migration v4)
 			if m.Message.Message != nil {
 				rID, rText = extractReplyInfo(m.Message.Message)
+			}
+
+			vc := "" // raw contact-card payload (migration v6)
+			if m.Message.Message != nil {
+				vc = extractContactVCard(m.Message.Message)
 			}
 
 			if text == "" && mt == "" {
@@ -211,8 +218,8 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 			}
 
 			if _, err := c.Store.Messages.Exec(`INSERT INTO messages
-				(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, direct_path, media_key_timestamp, media_key, file_sha256, file_enc_sha256, file_length, reply_to_id, reply_to_text)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				(id, chat_jid, sender, sender_jid, sender_name, content, timestamp, is_from_me, media_type, filename, url, direct_path, media_key_timestamp, media_key, file_sha256, file_enc_sha256, file_length, reply_to_id, reply_to_text, vcard)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(id, chat_jid) DO UPDATE SET
 					sender = excluded.sender,
 					sender_jid = CASE WHEN excluded.sender_jid != '' THEN excluded.sender_jid ELSE messages.sender_jid END,
@@ -230,8 +237,9 @@ func (c *Client) handleHistorySync(hs *events.HistorySync) HistorySyncResult {
 					file_enc_sha256 = CASE WHEN excluded.file_enc_sha256 IS NOT NULL THEN excluded.file_enc_sha256 ELSE messages.file_enc_sha256 END,
 					file_length = CASE WHEN excluded.file_length != 0 THEN excluded.file_length ELSE messages.file_length END,
 				reply_to_id = CASE WHEN excluded.reply_to_id != '' THEN excluded.reply_to_id ELSE messages.reply_to_id END,
-				reply_to_text = CASE WHEN excluded.reply_to_text != '' THEN excluded.reply_to_text ELSE messages.reply_to_text END`,
-				id, chatJID, snd, sndFull, senderName, text, t, fromMe, mt, fn, u, dp, mkt, mk, sha, enc, fl, rID, rText); err != nil {
+				reply_to_text = CASE WHEN excluded.reply_to_text != '' THEN excluded.reply_to_text ELSE messages.reply_to_text END,
+				vcard = CASE WHEN excluded.vcard != '' THEN excluded.vcard ELSE messages.vcard END`,
+				id, chatJID, snd, sndFull, senderName, text, t, fromMe, mt, fn, u, dp, mkt, mk, sha, enc, fl, rID, rText, vc); err != nil {
 				c.Logger.Warn("history sync: failed to store message", "id", id, "chat_jid", chatJID, "err", err)
 				continue
 			}

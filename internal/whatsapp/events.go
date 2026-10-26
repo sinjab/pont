@@ -26,6 +26,10 @@ type MessageDescription struct {
 	// (mirror of the store fields; migration v4).
 	ReplyToID   string `json:"reply_to_id,omitempty"`
 	ReplyToText string `json:"reply_to_text,omitempty"`
+	// Raw vCard payload of a shared contact card (mirror of the store
+	// field; migration v6) — omitempty keeps non-card envelopes byte-
+	// identical for frozen golden consumers.
+	VCard string `json:"vcard,omitempty"`
 	// DeviceSent is true when this is a copy of a message sent from
 	// another one of the user's own linked devices (phone, desktop,
 	// another CLI instance). On a dedicated watcher device these
@@ -52,6 +56,7 @@ func (c *Client) DescribeMessage(msg *events.Message) MessageDescription {
 	content := extractTextContent(msg.Message)
 	mediaType, _, _, _, _, _, _, _, _ := extractMediaInfo(msg.Message)
 	replyToID, replyToText := extractReplyInfo(msg.Message)
+	vcard := extractContactVCard(msg.Message)
 
 	d := MessageDescription{
 		ID:          string(msg.Info.ID),
@@ -64,6 +69,7 @@ func (c *Client) DescribeMessage(msg *events.Message) MessageDescription {
 		Content:     content,
 		ReplyToID:   replyToID,
 		ReplyToText: replyToText,
+		VCard:       vcard,
 	}
 
 	if !msg.Info.SenderAlt.IsEmpty() {
