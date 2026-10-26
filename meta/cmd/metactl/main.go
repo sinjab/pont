@@ -22,6 +22,7 @@ import (
 	"go.mau.fi/mautrix-meta/pkg/messagix"
 	"go.mau.fi/mautrix-meta/pkg/instameow"
 	"go.mau.fi/mautrix-meta/pkg/messagix/cookies"
+	"go.mau.fi/mautrix-meta/pkg/messagix/methods"
 	"go.mau.fi/mautrix-meta/pkg/messagix/socket"
 	"go.mau.fi/mautrix-meta/pkg/messagix/table"
 	"go.mau.fi/mautrix-meta/pkg/messagix/types"
@@ -30,7 +31,8 @@ import (
 const usage = `usage:
   metactl threads    <cookies.json> [collect-sec, default 20]
   metactl messages   <cookies.json> <thread_key> [collect-sec, default 12]
-  metactl ig-threads <ig-cookies.json>`
+  metactl ig-threads <ig-cookies.json>
+  metactl send       <cookies.json> <thread_key> <text>   # one shot, no retry`
 
 func main() {
 	if len(os.Args) < 3 {
@@ -57,6 +59,14 @@ func main() {
 		}
 	case "ig-threads":
 		igThreads(cookiePath)
+		return
+	case "send":
+		if len(os.Args) < 5 {
+			fmt.Fprintln(os.Stderr, usage)
+			os.Exit(2)
+		}
+		threadKey = mustInt(os.Args[3])
+		sendText(cookiePath, threadKey, os.Args[4])
 		return
 	default:
 		fmt.Fprintln(os.Stderr, usage)
@@ -217,6 +227,92 @@ func main() {
 		stamp := time.UnixMilli(m.TimestampMs).Format("2006-01-02 15:04")
 		fmt.Printf("%s\t%s\t%s\n", stamp, sender, m.Text)
 	}
+}
+
+// sendText — one-shot text send with optimistic-ID verification.
+// Exit codes: 0 = confirmed sent (message id on stdout), 1 = rejected
+// by server, 3 = MAYBE sent (write attempted, confirmation lost — do
+// NOT blind-retry with a fresh OTID; re-read the thread first).
+func sendText(cookiePath string, threadKey int64, text string) {
+	log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).With().Timestamp().Logger()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	ck := loadCookies(log, cookiePath)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	client := messagix.NewClient(ck, log, &messagix.Config{})
+	connected := make(chan struct{})
+	var connOnce sync.Once
+	client.SetEventHandler(func(_ context.Context, evt any) {
+		if _, ok := evt.(*table.LSTable); ok {
+			// keep sync cursors advancing while we hold the socket
+			if tbl, ok2 := evt.(*table.LSTable); ok2 {
+				client.PostHandlePublishResponse(tbl)
+			}
+		}
+		if _, ok := evt.(*messagix.ConnectedEvent); ok {
+			connOnce.Do(func() { close(connected) })
+		}
+	})
+
+	if _, _, err := client.LoadMessagesPage(ctx); err != nil {
+		log.Fatal().Msgf("LoadMessagesPage: %v", err)
+	}
+	if err := client.Connect(ctx); err != nil {
+		log.Fatal().Msgf("connect: %v", err)
+	}
+	select {
+	case <-connected:
+	case <-time.After(15 * time.Second):
+		log.Fatal().Msg("socket never connected")
+	case <-ctx.Done():
+		log.Fatal().Msg("interrupted")
+	}
+
+	if err := client.WaitUntilCanSendMessages(ctx, 15*time.Second); err != nil {
+		log.Fatal().Msgf("cannot send yet: %v", err)
+	}
+
+	otid := methods.GenerateEpochID()
+	task := &socket.SendMessageTask{
+		ThreadId:         threadKey,
+		Otid:             otid,
+		Source:           table.MESSENGER_INBOX_IN_THREAD,
+		InitiatingSource: table.FACEBOOK_INBOX,
+		SendType:         table.TEXT,
+		SyncGroup:        1,
+		Text:             text,
+	}
+	resp, err := client.ExecuteTasks(ctx, task)
+	if raw, jerr := json.Marshal(client.GetCookies()); jerr == nil {
+		_ = os.WriteFile(cookiePath, raw, 0o600)
+	}
+	if err != nil {
+		// The write MAY have landed (bridge maybeSent semantics) — re-read
+		// the thread before deciding; never blind-retry.
+		fmt.Fprintf(os.Stderr, "MAYBE-SENT: ExecuteTasks failed after write: %v — re-read the thread before retrying\n", err)
+		os.Exit(3)
+	}
+	otidStr := strconv.FormatInt(otid, 10)
+	if resp != nil {
+		for _, r := range resp.LSReplaceOptimsiticMessage {
+			if r.OfflineThreadingId == otidStr {
+				fmt.Printf("sent\t%s\t%s\n", r.MessageId, time.Now().Format(time.RFC3339))
+				return
+			}
+		}
+		for _, f := range resp.LSMarkOptimisticMessageFailed {
+			fmt.Fprintf(os.Stderr, "REJECTED: %s\n", f.Message)
+			os.Exit(1)
+		}
+		for _, f := range resp.LSHandleFailedTask {
+			fmt.Fprintf(os.Stderr, "REJECTED: %s\n", f.Message)
+			os.Exit(1)
+		}
+	}
+	fmt.Fprintln(os.Stderr, "MAYBE-SENT: no confirmation in response — re-read the thread before retrying")
+	os.Exit(3)
 }
 
 func igThreads(cookiePath string) {
