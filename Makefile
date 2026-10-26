@@ -50,3 +50,6 @@ set-version: ## Set version (VERSION=x.x.x)
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR)
 	go clean
+
+build-meta: ## Build the meta (FB Messenger + IG DMs) companion binary
+	cd meta && go build -o ../dist/pont-meta ./cmd/metactl
