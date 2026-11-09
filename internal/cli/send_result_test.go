@@ -67,7 +67,7 @@ func runReceiptCommand(t *testing.T, args ...string) (string, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	oldOut := os.Stdout
 	os.Stdout = w
 	defer func() { os.Stdout = oldOut }()
